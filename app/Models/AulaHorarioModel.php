@@ -615,7 +615,7 @@ class AulaHorarioModel extends Model
     public function countConflitosAmbiente(int $versaoId): int
     {
         $sqlAmbiente = "
-            SELECT COUNT(DISTINCT ah1.id) as total
+            SELECT COUNT(DISTINCT ah1.id) AS total
             FROM aula_horario ah1
             JOIN tempos_de_aula t1  ON t1.id = ah1.tempo_de_aula_id
             JOIN aula_horario_ambiente a1 ON a1.aula_horario_id = ah1.id
@@ -631,7 +631,7 @@ class AulaHorarioModel extends Model
               AND (t2.hora_inicio*60 + t2.minuto_inicio) <  (t1.hora_fim*60 + t1.minuto_fim)
         ";
 
-        $conflitos = $this->db->query($sqlAmbiente, ['v' => $versaoId])->getResultArray();
+        $conflitos = $this->db->query($sqlAmbiente, ['v' => $versaoId])->getRowArray();
         return (int)($conflitos['total'] ?? 0);
     }
 
