@@ -1,3 +1,5 @@
+<?php echo view('components/home/modal-listar-conflitos'); ?>
+
 <div class="row">
     <div class="col-xl-12 col-sm-6 grid-margin stretch-card">
         <div class="card">
@@ -247,6 +249,7 @@
     </div>
 </div>
 <script>
+
 document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById('cards-conflitos');
     container.innerHTML = `
@@ -283,7 +286,7 @@ document.addEventListener("DOMContentLoaded", function () {
         },
 
         'CONFLITO-INTERVALO': {
-          cor: 'danger',
+          cor: 'info',
           icone: 'mdi-timer-off-outline',
           texto: 'Conflitos de Intervalo'
         },
@@ -297,13 +300,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
         container.innerHTML += `
           <div class="col-xl-3 col-sm-6 grid-margin stretch-card">
-            <div class="card border ${configTipo.cor === 'danger' ? 'border-danger' : 'border-warning'}">
+            <div class="card border border-${configTipo.cor}">
               <div class="card-body">
                 <div class="row">
                   <div class="col-9">
                     <div class="d-flex align-items-center align-self-start">
-                      <h3 class="mb-0">${quantidade}</h3>
-                      <p class="text-${configTipo.cor} ms-2 mb-0 font-weight-medium">Aulas</p>
+                      <button class="mb-2 btn btn-outline-${configTipo.cor} fs-6 fw-bold text-light icon icon-box-${configTipo.cor}"
+                        data-bs-toggle="modal" 
+                        data-bs-target="#modal-listar-conflitos"
+                        data-tipo-conflito="${configTipo.texto}" 
+                      >
+                        ${quantidade}
+                      </button>
+                      <p class="text-${configTipo.cor} ms-2 mb-2 font-weight-medium">Aulas</p>
                     </div>
                   </div>
                   <div class="col-3">
@@ -330,6 +339,17 @@ document.addEventListener("DOMContentLoaded", function () {
       container.innerHTML = '<div class="alert alert-danger">Erro ao carregar conflitos.</div>';
       console.error(err);
     });
+    
 });
+$('#modal-listar-conflitos').on('show.bs.modal', function(e) {
+        var btn = $(e.relatedTarget);
+    
+        var tipo_conflito = btn.data('tipo-conflito');
+        
+        var modal = $(this);
+        // console.log(tipo_conflito, modal);
+        modal.find('#listar_conflito_tipo').text(tipo_conflito);
+    
+    });
 </script>
 
