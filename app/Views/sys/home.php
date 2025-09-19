@@ -249,79 +249,190 @@
     </div>
 </div>
 <script>
-
 document.addEventListener("DOMContentLoaded", function () {
-    const container = document.getElementById('cards-conflitos');
-    container.innerHTML = `
-        <div class="col-12"><div class="alert alert-secondary">Carregando conflitos…</div></div>
-    `;
-    fetch("<?= base_url('sys/tabela-horarios/verificar-todos-conflitos') ?>")
+  const container = document.getElementById('cards-conflitos');
+  container.innerHTML = `
+    <div class="col-12"><div class="alert alert-secondary">Carregando conflitos…</div></div>
+  `;
+
+  // ---- helpers (pool, fetchDetalhe, render, carregarModal) ----
+  const ENDPOINT_POR_ID = "<?= base_url('sys/tabela-horarios/choque-ambiente') ?>"; 
+  // Se tiver um endpoint mais detalhado por ID, substitua a linha acima.
+
+  async function pool(items, worker, size = 8) {
+    const out = new Array(items.length);
+    let i = 0;
+    await Promise.all(new Array(Math.min(size, items.length)).fill(0).map(async () => {
+      while (i < items.length) {
+        const idx = i++;
+        try { out[idx] = await worker(items[idx]); }
+        catch { out[idx] = null; }
+      }
+    }));
+    return out.filter(Boolean);
+  }
+
+  async function fetchDetalhePorId(id) {
+    try {
+      const r = await fetch(`${ENDPOINT_POR_ID}/${id}`);
+      const data = await r.json();
+
+      // Caso o endpoint retorne somente IDs conflitantes:
+      if (Array.isArray(data) || typeof data === 'number' || typeof data === 'string') {
+        const lista = Array.isArray(data) ? data : [data];
+        return {
+          aula_horario_id: id,
+          ambiente: 'Ambiente Teste Att 1',
+          motivo: `Conflita com ${lista.filter(Boolean).join(', ')}`,
+          link_editar: "<?= base_url('sys/tabela-horarios/editar/') ?>"+id
+        };
+      }
+    //    console.log(data)
+      // Caso retorne objeto detalhado:
+      return {
+        aula_horario_id: data.aula_horario_id ?? id,
+        ambiente: data.nome ?? data.nome ?? 'Ambiente Teste Att 1',
+        motivo: data.motivo ?? data.descricao ?? 'Conflito detectado',
+        link_editar: data.link_editar ?? ("<?= base_url('sys/tabela-horarios/editar/') ?>"+id)
+      };
+    } catch (e) {
+      console.error(e);
+      return {
+        aula_horario_id: id,
+        ambiente: '',
+        professor: '',
+        turma: '',
+        dia: '',
+        tempo: '',
+        motivo: 'Erro ao consultar',
+        link_editar: "<?= base_url('sys/tabela-horarios/editar/') ?>"+id
+      };
+    }
+  }
+
+  function renderConflitos(itens, modalEl) {
+    const tbody = modalEl.querySelector('#tbl-conflitos-body');
+    tbody.innerHTML = '';
+    if (!itens.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhum item encontrado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = itens.map((row, i) => `
+      <tr class="text-center">
+        <td>${i + 1}</td>
+        <td>${row.aula_horario_id ?? ''}</td>
+        <td>${row.ambiente ?? ''}</td>
+        <td>${row.motivo ?? ''}</td>
+        <td>${row.link_editar ? `<a class="btn btn-sm btn-outline-primary" target="_blank" href="${row.link_editar}">Abrir</a>` : ''}</td>
+      </tr>
+    `).join('');
+  }
+
+  async function carregarConflitosDoTipo(tipoChave, modalEl) {
+    const ids = (window.conflitoIdsByTipo?.[tipoChave]) || [];
+    const loading = modalEl.querySelector('#conflitos-loading');
+    const resumo  = modalEl.querySelector('#conflitos-resumo');
+    const tbody   = modalEl.querySelector('#tbl-conflitos-body');
+
+    loading.style.display = 'block';
+    resumo.textContent = '';
+    tbody.innerHTML = '';
+
+    if (!ids.length) {
+      loading.style.display = 'none';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhum item.</td></tr>';
+      return;
+    }
+
+    const itens = await pool(ids, fetchDetalhePorId, 8);
+    renderConflitos(itens, modalEl);
+
+    loading.style.display = 'none';
+    resumo.textContent = `${itens.length} registro(s).`;
+  }
+
+  // ---- carrega a Dash ----
+  fetch("http://localhost/horarios/public/sys/tabela-horarios/verificar-todos-conflitos")
     .then(r => r.json())
     .then(data => {
       container.innerHTML = '';
 
+      // Guarda os IDs por tipo DENTRO do .then (aqui 'data' existe)
+      const conflitoIdsByTipo = {};
+      // Normaliza só o que existe no payload
+      ['CONFLITO-AMBIENTE','CONFLITO-INTERVALO','CONFLITO-PROFESSOR','CONFLITO-TURNOS','RESTRIÇÃO-DOCENTE']
+        .forEach(key => {
+          const arr = Array.isArray(data[key]) ? data[key] : [];
+          conflitoIdsByTipo[key] = arr
+            .map(x => parseInt(x.id_conflito, 10))
+            .filter(Number.isFinite);
+        });
+      // Torna acessível no handler da modal
+      window.conflitoIdsByTipo = conflitoIdsByTipo;
+
+      // Mapa de cards (note o count de Ambiente vem de COUNT-AMBIENTE,
+      // mas a chave de lista para a modal é CONFLITO-AMBIENTE)
       const tipos = {
-        'CONFLITO-AMBIENTE': {
+        'COUNT-AMBIENTE': {
           cor: 'danger',
           icone: 'mdi-map-marker-off',
-          texto: 'Conflitos de Ambiente'
+          texto: 'Conflitos de Ambiente',
+          chaveLista: 'CONFLITO-AMBIENTE' // <- passaremos esta na modal
         },
-        
         'CONFLITO-PROFESSOR': {
           cor: 'warning',
           icone: 'mdi-account-alert',
-          texto: 'Conflitos de Professor'
+          texto: 'Conflitos de Professor',
+          chaveLista: 'CONFLITO-PROFESSOR'
         },
-
         'CONFLITO-TURNOS': {
           cor: 'danger',
           icone: 'mdi-clock-alert-outline',
-          texto: 'Conflitos de Turnos'
+          texto: 'Conflitos de Turnos',
+          chaveLista: 'CONFLITO-TURNOS'
         },
-
         'RESTRIÇÃO-DOCENTE': {
           cor: 'warning',
           icone: 'mdi-account-cancel-outline',
-          texto: 'Restrição de Professor'
+          texto: 'Restrição de Professor',
+          chaveLista: 'RESTRIÇÃO-DOCENTE'
         },
-
         'CONFLITO-INTERVALO': {
           cor: 'info',
           icone: 'mdi-timer-off-outline',
-          texto: 'Conflitos de Intervalo'
-        },
-        
+          texto: 'Conflitos de Intervalo',
+          chaveLista: 'CONFLITO-INTERVALO'
+        }
       };
 
-      Object.entries(tipos).forEach(([tipo, configTipo]) => {
-
-        const quantidade = data[tipo] ?? 0;
-        if (quantidade === 0) return;
+      Object.entries(tipos).forEach(([chaveContador, cfg]) => {
+        const quantidade = Number(data[chaveContador] ?? 0);
+        if (!quantidade) return;
 
         container.innerHTML += `
           <div class="col-xl-3 col-sm-6 grid-margin stretch-card">
-            <div class="card border border-${configTipo.cor}">
+            <div class="card border border-${cfg.cor}">
               <div class="card-body">
                 <div class="row">
                   <div class="col-9">
                     <div class="d-flex align-items-center align-self-start">
-                      <button class="mb-2 btn btn-outline-${configTipo.cor} fs-6 fw-bold text-light icon icon-box-${configTipo.cor}"
+                      <button class="mb-2 btn btn-outline-${cfg.cor} fs-6 fw-bold text-light icon icon-box-${cfg.cor}"
                         data-bs-toggle="modal" 
                         data-bs-target="#modal-listar-conflitos"
-                        data-tipo-conflito="${configTipo.texto}" 
-                      >
+                        data-tipo-chave="${cfg.chaveLista}"
+                        data-tipo-conflito="${cfg.texto}">
                         ${quantidade}
                       </button>
-                      <p class="text-${configTipo.cor} ms-2 mb-2 font-weight-medium">Aulas</p>
+                      <p class="text-${cfg.cor} ms-2 mb-2 font-weight-medium">Aulas</p>
                     </div>
                   </div>
                   <div class="col-3">
-                    <div class="icon icon-box-${configTipo.cor}">
-                      <span class="mdi ${configTipo.icone} icon-item"></span>
+                    <div class="icon icon-box-${cfg.cor}">
+                      <span class="mdi ${cfg.icone} icon-item"></span>
                     </div>
                   </div>
                 </div>
-                <h6 class="text-muted font-weight-normal">${configTipo.texto}</h6>
+                <h6 class="text-muted font-weight-normal">${cfg.texto}</h6>
               </div>
             </div>
           </div>
@@ -339,17 +450,20 @@ document.addEventListener("DOMContentLoaded", function () {
       container.innerHTML = '<div class="alert alert-danger">Erro ao carregar conflitos.</div>';
       console.error(err);
     });
-    
+
+  // Handler da modal (usa window.conflitoIdsByTipo setado no .then)
+  $('#modal-listar-conflitos').off('show.bs.modal').on('show.bs.modal', function (e) {
+    const btn       = $(e.relatedTarget);
+    const tipoLabel = btn.data('tipo-conflito');   // rótulo
+    const tipoChave = btn.data('tipo-chave');      // ex.: 'CONFLITO-AMBIENTE'
+
+    this.querySelector('#listar_conflito_tipo').textContent = tipoLabel || 'Conflitos';
+    carregarConflitosDoTipo(tipoChave, this);
+  });
+
 });
-$('#modal-listar-conflitos').on('show.bs.modal', function(e) {
-        var btn = $(e.relatedTarget);
-    
-        var tipo_conflito = btn.data('tipo-conflito');
-        
-        var modal = $(this);
-        // console.log(tipo_conflito, modal);
-        modal.find('#listar_conflito_tipo').text(tipo_conflito);
-    
-    });
 </script>
+
+
+
 

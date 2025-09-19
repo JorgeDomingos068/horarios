@@ -612,10 +612,10 @@ class AulaHorarioModel extends Model
         }
     }
 
-    public function countConflitosAmbiente(int $versaoId): int
+    public function countConflitosAmbiente(int $versaoId)
     {
         $sqlAmbiente = "
-            SELECT COUNT(DISTINCT ah1.id) AS total
+            SELECT DISTINCT ah1.id AS id_conflito
             FROM aula_horario ah1
             JOIN tempos_de_aula t1  ON t1.id = ah1.tempo_de_aula_id
             JOIN aula_horario_ambiente a1 ON a1.aula_horario_id = ah1.id
@@ -631,8 +631,50 @@ class AulaHorarioModel extends Model
               AND (t2.hora_inicio*60 + t2.minuto_inicio) <  (t1.hora_fim*60 + t1.minuto_fim)
         ";
 
-        $conflitos = $this->db->query($sqlAmbiente, ['v' => $versaoId])->getRowArray();
-        return (int)($conflitos['total'] ?? 0);
+        $conflitos = $this->db->query($sqlAmbiente, ['v' => $versaoId])->getResultArray();
+              
+        return ($conflitos ?? 0);
+    }
+
+    public function listaChoqueAmbiente(int $aulaHorarioId): array
+    {
+        // 1) Pega (ambiente_id, tempo_de_aula_id) do AH base
+        $ah = $this->select('ah_amb.ambiente_id, ah.tempo_de_aula_id, t.dia_semana, t.hora_inicio, t.minuto_inicio, t.hora_fim, t.minuto_fim')
+            ->from('aula_horario ah')
+            ->join('aula_horario_ambiente ah_amb', 'ah_amb.aula_horario_id = ah.id')
+            ->join('tempos_de_aula t', 't.id = ah.tempo_de_aula_id')
+            ->where('ah.id', $aulaHorarioId)
+            ->groupStart()->where('ah.bypass is null')->orWhere('ah.bypass', '0')->groupEnd()
+            ->where('ah.versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()))
+            ->get()->getRowArray();
+
+        if (!$ah) return []; // se não existir
+
+        $ambienteId   = (int)$ah['ambiente_id'];
+        $dia          = (int)$ah['dia_semana'];
+        $a_ini_min    = (int)$ah['hora_inicio'] * 60 + (int)$ah['minuto_inicio'];
+        $a_fim_min    = (int)$ah['hora_fim']    * 60 + (int)$ah['minuto_fim'];
+
+        // 2) Busca TODOS os AH que colidem nesse ambiente/mesmo dia
+        $rows = $this->select('aula_horario.id AS theid, ambientes.nome')
+            ->join('tempos_de_aula', 'aula_horario.tempo_de_aula_id = tempos_de_aula.id')
+            ->join('ambientes', 'ambientes.id = aula_horario_ambiente.ambiente_id')
+            ->join('aula_horario_ambiente', 'aula_horario_ambiente.aula_horario_id = aula_horario.id')
+            ->where('aula_horario.id !=', $aulaHorarioId)
+            ->groupStart()->where('bypass is null')->orWhere('bypass', '0')->groupEnd()
+            ->where('aula_horario_ambiente.ambiente_id', $ambienteId)
+            ->where('tempos_de_aula.dia_semana', $dia)
+            // overlap: (ini1 < fim2) AND (ini2 < fim1)
+            ->where('(tempos_de_aula.hora_inicio * 60 + tempos_de_aula.minuto_inicio) <', $a_fim_min)
+            ->where('(tempos_de_aula.hora_fim * 60 + tempos_de_aula.minuto_fim) >', $a_ini_min)
+            ->where('aula_horario.versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()))
+            ->get()->getResultArray();
+
+        // 3) Retorna uma lista de IDs (sem return antecipado)
+        return array_values(array_unique(array_map(
+            fn($r) => (int)$r['theid'],
+            $rows
+        )));
     }
 
     public function countConflitosProfessor(int $versaoId): int

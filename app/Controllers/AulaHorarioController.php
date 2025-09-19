@@ -22,12 +22,16 @@ class AulaHorarioController extends BaseController
 
     $conflitos = [
       'CONFLITO-AMBIENTE' => $amb,
+      'COUNT-AMBIENTE' => count($amb),
       'CONFLITO-PROFESSOR' => $prof,
       'RESTRIÇÃO-DOCENTE' => $restricao,
       'CONFLITO-TURNOS' => $turnos,
       'CONFLITO-INTERVALO' => $intervalo,
     ];
 
+    // \Kint\Kint::$mode_default = \Kint\Kint::MODE_PLAIN;
+    //     dd($conflitos); // imprime tudo e para
+    
     return $this->response->setJSON($conflitos);
   }
 
