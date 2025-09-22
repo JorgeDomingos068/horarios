@@ -176,7 +176,7 @@ function destacarAula(obj, isDestaque, tipo, url)
     });
 }
 
-function configurarBotoesDoCardDeAula(obj, urlBase)
+function configurarBotoesDoCardDeAula(obj)
 {
     $("#btnRemover_horario_" + obj.id).off().click(function(e) 
     {
@@ -189,7 +189,7 @@ function configurarBotoesDoCardDeAula(obj, urlBase)
             return;
         }
 
-        removerAulaHorario(obj, urlBase + 'removerAula');
+        removerAulaHorario(obj, URLbase + 'sys/tabela-horarios/' + 'removerAula');
     });
 
     $("#btnFixar_horario_" + obj.id).off().click(function(e) 
@@ -198,9 +198,9 @@ function configurarBotoesDoCardDeAula(obj, urlBase)
         e.stopPropagation();
 
         if (obj.fixa == 1)
-            fixarAulaHorario(0, obj.id, obj.tempo_de_aula_id, urlBase + 'fixarAula'); //desfixar
+            fixarAulaHorario(0, obj.id, obj.tempo_de_aula_id, URLbase + 'sys/tabela-horarios/' + 'fixarAula'); //desfixar
         else
-            fixarAulaHorario(1, obj.id, obj.tempo_de_aula_id, urlBase + 'fixarAula'); //fixar
+            fixarAulaHorario(1, obj.id, obj.tempo_de_aula_id, URLbase + 'sys/tabela-horarios/' + 'fixarAula'); //fixar
     });
 
     $("#btnBypass_horario_" + obj.id).off().click(function(e)
@@ -209,9 +209,9 @@ function configurarBotoesDoCardDeAula(obj, urlBase)
         e.stopPropagation();
 
         if (obj.bypass == 1)
-            bypassarAulaHorario(0, obj.id, obj.tempo_de_aula_id, urlBase + 'bypassAula'); //desbypass
+            bypassarAulaHorario(0, obj.id, obj.tempo_de_aula_id, URLbase + 'sys/tabela-horarios/' + 'bypassAula'); //desbypass
         else
-            bypassarAulaHorario(1, obj.id, obj.tempo_de_aula_id, urlBase + 'bypassAula'); //bypass
+            bypassarAulaHorario(1, obj.id, obj.tempo_de_aula_id, URLbase + 'sys/tabela-horarios/' +  'bypassAula'); //bypass
     });    
 
     $("#btnDestacar_horario_" + obj.id).off().click(function(e) 
@@ -222,6 +222,6 @@ function configurarBotoesDoCardDeAula(obj, urlBase)
         const isDestaque = $(this).hasClass("mdi-star");
         const tipo = isDestaque ? 0 : 1;
 
-        destacarAula(obj, isDestaque, tipo, urlBase + 'destacarAula');
+        destacarAula(obj, isDestaque, tipo, URLbase + 'sys/tabela-horarios/' +  'destacarAula');
     });    
 }
