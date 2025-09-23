@@ -1,8 +1,18 @@
+function removerTagDeConflitoNosSelects()
+{
+    $('#selectAmbiente, #alteraAmbiente').find('option').each(function()
+    {            
+        $(this).text($(this).text().replace(textoConflito, ''));
+    });
+}
+
 // Modal de confirmação de remoção (estilo Bootstrap)
 function mostrarModalConfirmacaoRemocao(horarioElement) 
 {
     const $horario = $(horarioElement);
     const aulaId = $horario.data('aula-id');
+
+    horarioId = $horario.attr('id').split('_')[1]; // Extrai o ID do horário
 
     // Adiciona os dados ao horário
     $("#modalAnalisarHorario")
@@ -38,6 +48,9 @@ function mostrarModalConfirmacaoRemocao(horarioElement)
 
     $('#alteraAmbiente').val(selectedAmbientes);
     $('#alteraAmbiente').trigger('change');
+
+    //Verifica os possívels conflitos dos ambientes para o select
+    verificaConflitoDeAmbientes(aulaId, horarioId, $("#alteraAmbiente"));
 
     //Verificar e preencher dados do conflito
     if ($horario.data('tresturnos') > 0) 
@@ -131,93 +144,70 @@ function mostrarModalConfirmacaoRemocao(horarioElement)
     modalAnalisarHorario.show();
 }
 
+// Carrega as disciplinas pendentes no modal
+function carregarDisciplinasPendentes(id)
+{
+    id = id.split('_')[1]; // Extrai o ID do horário
+    let dadosDoHorario = getHorarioById(id);
+
+    $("#dia_da_aula").html(nome_dia[dadosDoHorario.dia_semana]);
+    $("#hora_da_aula").html(dadosDoHorario.hora_inicio + ":" + dadosDoHorario.minuto_inicio);
+    $("#modal_Turma").html($('#filtroTurma option:selected').text());
+
+    $("#tabelaDisciplinasModal tbody").empty();
+
+    // Verifica se há uma disciplina atribuída no horário selecionado
+    if (horarioSelecionado && horarioSelecionado.data('disciplina')) 
+    {
+        const row = `
+            <tr>
+                <td>${horarioSelecionado.data('disciplina')}</td>
+                <td>${horarioSelecionado.data('professor')}</td>
+                <td>1 aula</td>
+                <td><button class="btn btn-danger btn-sm btn-remover">Remover</button></td>
+            </tr>
+        `;
+
+        $("#tabelaDisciplinasModal tbody").append(row);
+
+        // Evento para botão remover
+        $("#tabelaDisciplinasModal .btn-remover").click(function() 
+        {
+            mostrarModalConfirmacaoRemocao(horarioSelecionado[0]);
+            modalAtribuirDisciplina.hide();
+        });
+    }
+
+    $('.card[draggable="true"]').each(function() 
+    {
+        let theCard = $(this);
+
+        let disciplinaRow = '' +
+            '<tr>' +
+                '<td>' + $(this).data("disciplina") + '</td>' +
+                '<td>' + $(this).data("professor") + '</td>' +
+                '<td>' + $(this).data("aulas-pendentes") + ' aula(s)</td>' +
+                '<td>' +
+                    '<button type="button" class="btn btn-primary btn-sm botao_atribuir" id="botao_atribuir_' + $(this).data("aula-id") + '" >Atribuir</button>' +
+                '</td>' +
+            '</tr>';
+
+        $("#tabelaDisciplinasModal tbody").append(disciplinaRow);
+
+        // Adiciona evento de clique diretamente
+        $("#botao_atribuir_" + $(this).data("aula-id")).on('click', function() 
+        {
+            atribuirDisciplina($(this).attr('id').split('_')[2], id);
+        });
+    });
+}
 
 function abrirModalAmbiente(aulaId, tempoDeAulaId) 
 {
-    //evita que uma requisição seja chamada antes da finalização da anterior     
-    if (conflitosDetectados && conflitosDetectados.readyState !== 4) 
-        conflitosDetectados.abort();
+    removerTagDeConflitoNosSelects();
 
-    //desmonta select2 e limpa antes de mexer no HTML
-    destroySelect2();
-    limparOptionsSelect();
-
-    conflitosDetectados = $.ajax({
-        url: URLbase + 'sys/tabela-horarios/destacar-conflitos-ambiente',
-        method: 'POST',
-        dataType: 'json',
-        cache: false,
-        data: { aula_id: aulaId, tempo_de_aula_id: tempoDeAulaId }
-    });
-
-    conflitosDetectados.done(function (data) 
-    {
-        const arr = Array.isArray(data) ? data : [];
-        const conflitoIds = new Set(arr.map(o => String(o.ambiente_id)));
-
-        $selectAmbiente.find('option:disabled:selected').remove();
-        $selectAmbiente.prop('disabled', false);
-
-        //adiciona a tag de conflito à option caso detecte o conflito 
-        $selectAmbiente.find('option').each(function () 
-        {
-            const $optionAmbiente = $(this);
-            const id = String($optionAmbiente.val());
-            const textoPadrao = $optionAmbiente.attr('data-original-text') ?? $optionAmbiente.text().replace(textoConflito, '');
-
-            if (conflitoIds.has(id)) 
-            {
-                $optionAmbiente.text(textoPadrao + textoConflito).addClass('option-conflito');
-            }
-            else
-            {
-                $optionAmbiente.text(textoPadrao).removeClass('option-conflito');
-            }
-        });
-
-        //garantir que o Select2 esteja ativo para evitar que ele não consiga ser aberto
-        inicializarSelect2();
-        $selectAmbiente.trigger('change');
-    });
-
-    //se falhar, isso garante que o select2 continue sendo inicializado
-    conflitosDetectados.fail(function (xhr, status, err) 
-    {
-        if (status === 'abort') 
-            return;
-
-        $selectAmbiente.find('option:disabled:selected').remove();
-        $selectAmbiente.prop('disabled', false);
-
-        inicializarSelect2();
-        $selectAmbiente.trigger('change');
-
-        console.warn('Falha ao carregar conflitos:', status, err, 'HTTP', xhr?.status);
-    });
-
-    // !ditando ciclo de vida da modal para o select não acumular estados! //
-
-    $modalAmbiente.on('show.bs.modal', function (e) 
-    {
-        const $aberturaModal = $(e.relatedTarget);
-        abrirModalAmbiente($aberturaModal.data('aula-id'), $aberturaModal.data('tempo-de-aula-id'));
-    });
-
-    // iniciando o Select2 após a modal estar no DOM
-    $modalAmbiente.on('shown.bs.modal', function () 
-    {
-        inicializarSelect2();
-    });
-
-    $modalAmbiente.on('hidden.bs.modal', function () 
-    {
-        if (conflitosDetectados && conflitosDetectados.readyState !== 4) 
-            conflitosDetectados.abort();
-
-        conflitosDetectados = null;
-        destroySelect2();
-        limparOptionsSelect();
-    });
+    //Verifica os possívels conflitos dos ambientes para o select
+    verificaConflitoDeAmbientes(aulaId, tempoDeAulaId, $("#selectAmbiente"));
 
     let minhaAula = getAulaById(aulaId);
     $("#modalAmbienteNomeDisciplina").html(minhaAula.disciplina);
@@ -244,6 +234,7 @@ function atribuirDisciplina(aulaId, horarioId)
 function configurarDragAndDrop() 
 {
     // Drag start para cards de disciplinas
+    $('.card[draggable="true"]').off('dragstart');
     $('.card[draggable="true"]').on('dragstart', function(e) 
     {
         e.originalEvent.dataTransfer.setData('text/plain', $(this).data('aula-id'));
@@ -251,12 +242,14 @@ function configurarDragAndDrop()
     });
 
     // Drag end para cards de disciplinas
+    $('.card[draggable="true"]').off('dragend');
     $('.card[draggable="true"]').on('dragend', function() 
     {
         $(this).removeClass('dragging');
     });
 
     // Drag over para horários
+    $('.horario-vazio').off('dragover');
     $('.horario-vazio').on('dragover', function(e) 
     {
         e.preventDefault();
@@ -264,12 +257,14 @@ function configurarDragAndDrop()
     });
 
     // Drag leave para horários
+    $('.horario-vazio').off('dragleave');
     $('.horario-vazio').on('dragleave', function() 
     {
         $(this).removeClass('drag-over');
     });
 
     // Drop para horários
+    $('.horario-vazio').off('drop');
     $('.horario-vazio').on('drop', function(e) 
     {
         e.preventDefault();
@@ -304,17 +299,12 @@ function montarCardDeHorario(obj, aula)
     let conflitoStyle = "text-primary";
     let conflitoIcon = "fa-mortar-board";
 
-    if (obj.tresturnos > 0) 
+    if (obj.tresturnos > 0 || obj.restricao > 0) 
     {
         conflitoStyle = "text-danger";
         conflitoIcon = "fa-warning";
-    } 
-    else if (obj.restricao > 0) 
-    {
-        conflitoStyle = "text-danger";
-        conflitoIcon = "fa-warning";
-    } 
-    else if (obj.choque > 0) 
+    }
+    else if (obj.choque > 0)
     {
         conflitoStyle = "text-warning";
         conflitoIcon = "fa-warning";
@@ -498,28 +488,31 @@ $("#confirmarAmbiente").click(function(e)
     e.preventDefault();
     e.stopPropagation();
 
-    const ambienteSelecionadoId = $("#selectAmbiente").val();
+    removerTagDeConflitoNosSelects();
+
+    let ambienteSelecionadoId = $("#selectAmbiente").val();
+
     let ambientesSelecionadosNome = [];
     let ambientesSelecionados = [];
 
     let data = $('#selectAmbiente').select2('data');
 
-    data.forEach(function(item) 
+    data.forEach(function(item)
     {
         item.text = item.text.replace(textoConflito, '');
         ambientesSelecionadosNome.push(item.text);
         ambientesSelecionados.push(item.id);
     });
 
-    const aulaId = $('#modalSelecionarAmbiente').data('aula-id');
-    const aula = getAulaById(aulaId);
-    const cardAula = $(`#aula_${aulaId}`);
-    const horarioId = $('#modalSelecionarAmbiente').data('horario-id');
+    let aulaId = $('#modalSelecionarAmbiente').data('aula-id');
+    let cardAula = $(`#aula_${aulaId}`);
+    let horarioId = $('#modalSelecionarAmbiente').data('horario-id');
 
-    if (horarioSelecionado) 
+    if (horarioSelecionado)
     {
         atribuirAulaAoHorario(cardAula, aulaId, horarioId, ambienteSelecionadoId, ambientesSelecionados, ambientesSelecionadosNome);                
     }
+
 });
 
 //Configura o botao de limpar horários
@@ -537,6 +530,8 @@ $("#confirmarAlterarAmbiente").click(function(e)
     e.preventDefault();
     e.stopPropagation();
 
+    removerTagDeConflitoNosSelects();
+
     const ambienteSelecionadoId = $("#alteraAmbiente").val();
 
     let ambientesSelecionadosNome = [];
@@ -544,17 +539,19 @@ $("#confirmarAlterarAmbiente").click(function(e)
     
     let data = $('#alteraAmbiente').select2('data');
 
-    data.forEach(function(item) {
+    data.forEach(function(item) 
+    {
+        item.text = item.text.replace(textoConflito, '');
         ambientesSelecionadosNome.push(item.text);
         ambientesSelecionados.push(item.id);
     });
 
     const aulaId = $('#modalAnalisarHorario').data('aula-id');
-    const aula = getAulaById(aulaId);
     const cardAula = $(`#aula_${aulaId}`);
     const horarioId = $('#modalAnalisarHorario').data('horario_id');
 
     atribuirAulaAoHorario(cardAula, aulaId, horarioId, ambienteSelecionadoId, ambientesSelecionados, ambientesSelecionadosNome);
+
 });
 
 //Programação do evento "change" dos select de cursos
@@ -655,6 +652,8 @@ function montarTabelaTurno(turno, dias, htmlDaTableHead)
 //Programação do evento "change" dos select de turmas
 $('#filtroTurma').on('change', function() 
 {
+    removerTagDeConflitoNosSelects();
+    
     aulas = [];
 
     $(".loader-demo-box").css("visibility", "visible");

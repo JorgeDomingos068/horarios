@@ -8,46 +8,52 @@ use App\Models\AulaHorarioModel;
 
 class AulaHorarioController extends BaseController
 {
-  public function verificarConflitosRotina() {
+	public function verificarConflitosRotina()
+	{
 
-    $versaoId = (new \App\Models\VersoesModel())->getVersaoByUser(auth()->id());
+		$versaoId = (new \App\Models\VersoesModel())->getVersaoByUser(auth()->id());
 
-    $model = new \App\Models\AulaHorarioModel();
-    
-    $amb  = $model->countConflitosAmbiente($versaoId);
-    $prof = $model->countConflitosProfessor($versaoId);
-    $restricao = $model->countRestricaoDocente($versaoId);
-    $turnos = $model->countTresTurnos($versaoId);
-    $intervalo = $model->countTempoEntreTurnos($versaoId);
+		$model = new \App\Models\AulaHorarioModel();
 
-    $conflitos = [
-      'CONFLITO-AMBIENTE' => $amb,
-      'CONFLITO-PROFESSOR' => $prof,
-      'RESTRIÇÃO-DOCENTE' => $restricao,
-      'CONFLITO-TURNOS' => $turnos,
-      'CONFLITO-INTERVALO' => $intervalo,
-    ];
+		$amb  = $model->countConflitosAmbiente($versaoId);
+		$prof = $model->countConflitosProfessor($versaoId);
+		$restricao = $model->countRestricaoDocente($versaoId);
+		$turnos = $model->countTresTurnos($versaoId);
+		$intervalo = $model->countTempoEntreTurnos($versaoId);
 
-    return $this->response->setJSON($conflitos);
-  }
+		$conflitos = [
+			'CONFLITO-AMBIENTE' => $amb,
+			'CONFLITO-PROFESSOR' => $prof,
+			'RESTRIÇÃO-DOCENTE' => $restricao,
+			'CONFLITO-TURNOS' => $turnos,
+			'CONFLITO-INTERVALO' => $intervalo,
+		];
 
-  public function destacarConflitosAmbiente()
-  {
-      $data = $this->request->getPost();
-      $idTempoDeAula = $data['tempo_de_aula_id'];
+		return $this->response->setJSON($conflitos);
+	}
 
-      $aulaHorarioModel = new AulaHorarioModel();
-      $conflitos = $aulaHorarioModel->destacandoConflitoAmbiente($idTempoDeAula);
+	public function destacarConflitosAmbiente()
+	{
+		$data = $this->request->getPost();
+		$idTempoDeAula = $data['tempo_de_aula_id'];
+		$idAula = $data['aula_id'];
 
-      if (!empty($conflitos)) {
-          return $this->response->setJSON(
-              $conflitos
-          );
-      } else {
-          return $this->response->setJSON([
-              'mensagem' => 'Sem Conflitos!',
-          ]);
-      }
-      return $this->response->setJSON(['status' => 'ok']);
-  }  
+		$aulaHorarioModel = new AulaHorarioModel();
+		$conflitos = $aulaHorarioModel->destacandoConflitoAmbiente($idTempoDeAula, $idAula);
+
+		if (!empty($conflitos))
+		{
+			return $this->response->setJSON(
+				$conflitos
+			);
+		}
+		else
+		{
+			return $this->response->setJSON([
+				'mensagem' => 'Sem Conflitos!',
+			]);
+		}
+		
+		return $this->response->setJSON(['status' => 'ok']);
+	}
 }

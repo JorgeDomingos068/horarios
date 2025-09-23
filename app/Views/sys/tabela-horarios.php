@@ -95,9 +95,11 @@
 
 <script>
 let URLbase = '<?= base_url(); ?>';
+const textoConflito = ' ⚠️';
 </script>
 
 <script src="<?php echo base_url("assets/js/tabela-horarios/controles-de-interface.js"); ?>"></script>
+<script src="<?php echo base_url("assets/js/tabela-horarios/funcoes-auxiliares.js"); ?>"></script>
 
 <script>
 
@@ -119,32 +121,12 @@ let URLbase = '<?= base_url(); ?>';
     const modalAnalisarHorario = new bootstrap.Modal(modalAnalisarHorarioElement);
 
     const $modalAmbiente  = $('#modalAula');
-    const $selectAmbiente = $('#selectAmbiente');
-    let conflitosDetectados = null;
-    const textoConflito = ' ⚠️';
 
     //Algumas globais pra controle dos modals
-    let horarioSelecionado = null;
-
-    //Função para retornar o objeto de uma aula pelo id
-    function getAulaById(id) 
-    {
-        let theIdObj = null;
-
-        $.each(aulas, function(idx, obj) 
-        {
-            if (obj.id == id) 
-            {
-                theIdObj = obj;
-                return false; //simula o BREAK no .each do JQuery
-            }
-        });
-
-        return theIdObj;
-    }
+    let horarioSelecionado = null;    
 
     // config para não quebrar o select 
-    const configSelectAmbiente = 
+    /*const configSelectAmbiente = 
     {
         width: '100%',
         placeholder: 'Selecione o(s) ambiente(s)…',
@@ -163,19 +145,19 @@ let URLbase = '<?= base_url(); ?>';
                 ? $('<span class="text-secondary"></span>').text($optionAmbiente.text())
                 : data.text;
         }
-    };
+    };*/
 
     //função para destruir o select2 possibilitando que as opções marcadas com conflito sejam limpas antes da próxima abertura de modal
-    function destroySelect2() 
+    /*function destroySelect2() 
     {
         if ($selectAmbiente.hasClass('select2-hidden-accessible')) 
         {
             $selectAmbiente.select2('close');
             $selectAmbiente.select2('destroy');
         }
-    }
+    }*/
 
-    function inicializarSelect2() 
+    /*function inicializarSelect2() 
     {
         if ($selectAmbiente.hasClass('select2-hidden-accessible')) 
             return; // se já iniciado, retorna
@@ -187,9 +169,9 @@ let URLbase = '<?= base_url(); ?>';
             ...configSelectAmbiente,
             dropdownParent: fallbackSelect
         });
-    }
+    }*/
 
-    function limparOptionsSelect() 
+    /*function limparOptionsSelect() 
     {
         //percorre todas as opcões do select e remove o texto de conflito, se houver
         $selectAmbiente.find('option').each(function () 
@@ -200,129 +182,7 @@ let URLbase = '<?= base_url(); ?>';
         });
 
         $selectAmbiente.val(null);
-    }    
-
-    function getAmbienteNome(id) 
-    {
-        let ambienteNome = "";
-
-        $("#selectAmbiente option").each(function() 
-        {
-            if ($(this).val() == id) 
-            {
-                ambienteNome = $(this).text();
-            }
-        });
-
-        return ambienteNome;
-    }
-
-    function getAmbienteId(nome) 
-    {
-        let ambienteId = -1;
-
-        $("#selectAmbiente option").each(function() 
-        {
-            if ($(this).text().startsWith(nome))
-            {
-                ambienteId = $(this).val();
-            }
-        });
-
-        return ambienteId;
-    }
-
-    // Carrega as disciplinas pendentes no modal
-    function carregarDisciplinasPendentes(id)
-    {
-        id = id.split('_')[1]; // Extrai o ID do horário
-        let dadosDoHorario = getHorarioById(id);
-
-        $("#dia_da_aula").html(nome_dia[dadosDoHorario.dia_semana]);
-        $("#hora_da_aula").html(dadosDoHorario.hora_inicio + ":" + dadosDoHorario.minuto_inicio);
-        $("#modal_Turma").html($('#filtroTurma option:selected').text());
-
-        $("#tabelaDisciplinasModal tbody").empty();
-
-        // Verifica se há uma disciplina atribuída no horário selecionado
-        if (horarioSelecionado && horarioSelecionado.data('disciplina')) 
-        {
-            const row = `
-                <tr>
-                    <td>${horarioSelecionado.data('disciplina')}</td>
-                    <td>${horarioSelecionado.data('professor')}</td>
-                    <td>1 aula</td>
-                    <td><button class="btn btn-danger btn-sm btn-remover">Remover</button></td>
-                </tr>
-            `;
-
-            $("#tabelaDisciplinasModal tbody").append(row);
-
-            // Evento para botão remover
-            $("#tabelaDisciplinasModal .btn-remover").click(function() 
-            {
-                mostrarModalConfirmacaoRemocao(horarioSelecionado[0]);
-                modalAtribuirDisciplina.hide();
-            });
-        }
-
-        $('.card[draggable="true"]').each(function() 
-        {
-            let theCard = $(this);
-
-            let disciplinaRow = '' +
-                '<tr>' +
-                    '<td>' + $(this).data("disciplina") + '</td>' +
-                    '<td>' + $(this).data("professor") + '</td>' +
-                    '<td>' + $(this).data("aulas-pendentes") + ' aula(s)</td>' +
-                    '<td>' +
-                        '<button type="button" class="btn btn-primary btn-sm botao_atribuir" id="botao_atribuir_' + $(this).data("aula-id") + '" >Atribuir</button>' +
-                    '</td>' +
-                '</tr>';
-
-            $("#tabelaDisciplinasModal tbody").append(disciplinaRow);
-
-            // Adiciona evento de clique diretamente
-            $("#botao_atribuir_" + $(this).data("aula-id")).on('click', function() 
-            {
-                atribuirDisciplina($(this).attr('id').split('_')[2], id);
-            });
-        });
-    }
-
-    //Função para pesquisar o id de um horário pelo dia e horários
-    function getIdByDiaHoraMinuto(vetor, dia, hora_inicio, minuto_inicio, hora_fim, minuto_fim) 
-    {
-        let id = 0;
-
-        $.each(vetor, function(idx, obj) 
-        {
-            if (obj.dia_semana == dia && obj.hora_inicio == hora_inicio && obj.minuto_inicio == minuto_inicio && obj.hora_fim == hora_fim && obj.minuto_fim == minuto_fim) 
-            {
-                id = obj.id;
-                return false; //simula o BREAK no .each do JQuery
-            }
-        });
-
-        return id;
-    }
-
-    //Função para retornar os dados de um horário pelo id
-    function getHorarioById(id) 
-    {
-        let theIdObj = null;
-
-        $.each(horarios, function(idx, obj) 
-        {
-            if (obj.id == id) 
-            {
-                theIdObj = obj;
-                return false; //simula o BREAK no .each do JQuery
-            }
-        });
-
-        return theIdObj;
-    }
+    }*/
 
 </script>
 

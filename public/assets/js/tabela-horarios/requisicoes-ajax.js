@@ -59,10 +59,6 @@ function atribuirAulaAoHorario(cardAula, aulaId, horarioId, ambienteSelecionadoI
             return;
         }
 
-        let conflitoStyle = "text-primary";
-        let conflitoIcon = "fa-mortar-board";
-
-        let aulaConflito = 0;
         let tresTurnos = 0;
         let restricao = 0;
         let intervalo = 0;
@@ -72,43 +68,31 @@ function atribuirAulaAoHorario(cardAula, aulaId, horarioId, ambienteSelecionadoI
         let partes = data.split("-");
         let aulaHorarioId = partes[0];
 
-        if (data.indexOf("CONFLITO") >= 0)
+        let tiposDeConflito = partes[2] || "";
+        let aulaConflito = partes[3] || 0;
+        
+        if (data.indexOf("RESTRICAO") >= 0)
         {
-            let tiposDeConflito = partes[2] || "";
-            let aulaConflito = partes[3] || 0;
-
-            if (tiposDeConflito.indexOf("AMBIENTE") >= 0) 
+            restricao = partes[3];
+        }
+        else if (data.indexOf("INTERVALO") >= 0)
+        {
+            intervalo = data;
+        }
+        else if (data.indexOf("CONFLITO") >= 0)
+        {
+            if (data.indexOf("TRES-TURNOS") >= 0) 
+            {
+                tresTurnos = 1;
+            }
+            else if (tiposDeConflito.indexOf("AMBIENTE") >= 0) 
             {
                 conflitoAmbiente = 1;
-                conflitoStyle = "text-warning";
-                conflitoIcon = "fa-warning";
-                aulaConflito = partes[3];
             }
             else if (tiposDeConflito.indexOf("PROFESSOR") >= 0) 
             {
                 conflitoProfessor = 1;
-                conflitoStyle = "text-warning";
-                conflitoIcon = "fa-warning";
-                aulaConflito = partes[3];
-            }
-            else if (data.indexOf("TRES-TURNOS") >= 0) 
-            {
-                conflitoStyle = "text-danger";
-                conflitoIcon = "fa-warning";
-                tresTurnos = 1;
-            }
-            else if (data.indexOf("RESTRICAO") >= 0) 
-            {
-                conflitoStyle = "text-danger";
-                conflitoIcon = "fa-warning";
-                restricao = partes[3];
-            }
-            else if (data.indexOf("INTERVALO") >= 0)
-            {
-                conflitoStyle = "text-info";
-                conflitoIcon = "fa-warning";
-                intervalo = data;
-            }
+            }            
         }
 
         //TODO - verificar todos os atributos aqui que estão sem OK
@@ -231,3 +215,37 @@ function buscarTurmasDoCurso(curso)
     });
 }
 
+function verificaConflitoDeAmbientes(aulaId, tempoDeAulaId, element)
+{
+    let ambienteSelecionadoId = element.val();
+
+    $.post(URLbase + 'sys/tabela-horarios/destacar-conflitos-ambiente', 
+    {
+        aula_id: aulaId, 
+        tempo_de_aula_id: tempoDeAulaId
+    },
+    function(data) 
+    {
+        let arr = Array.isArray(data) ? data : [];
+        let conflitoIds = new Set(arr.map(o => String(o.ambiente_id)));
+
+        //adiciona a tag de conflito à option caso detecte o conflito 
+        element.find('option').each(function()
+        {
+            let id = String($(this).val());
+            let textoPadrao = $(this).text().replace(textoConflito, '');
+            $(this).remove();
+            let newOption = new Option(textoPadrao, id, false, false);
+
+            if (conflitoIds.has(id))
+            {
+                newOption = new Option(textoPadrao + textoConflito, id, false, false);
+            }
+
+            element.append(newOption);
+        });
+
+        element.val(ambienteSelecionadoId).trigger("change");
+
+    }, 'json');
+}

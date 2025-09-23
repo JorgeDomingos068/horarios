@@ -114,7 +114,8 @@ class AulaHorarioModel extends Model
             //->where('aula_horario.fixa !=', '1')
             ->get();
 
-        if ($idHorarioAula->getNumRows() > 0) {
+        if ($idHorarioAula->getNumRows() > 0)
+        {
             $idHorarioAula = $idHorarioAula->getRowArray()['id'];
             $this->db->simpleQuery("DELETE FROM aula_horario_ambiente WHERE aula_horario_id = '$idHorarioAula'");
             $this->db->simpleQuery("DELETE FROM aula_horario WHERE id = '$idHorarioAula'");
@@ -164,9 +165,12 @@ class AulaHorarioModel extends Model
         $builder->where('versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()));
         $query = $builder->get();
 
-        if ($query->getNumRows() > 0) {
+        if ($query->getNumRows() > 0)
+        {
             return true; // A aula existe na tabela
-        } else {
+        }
+        else
+        {
             return false; // A aula não existe na tabela
         }
     }
@@ -183,7 +187,8 @@ class AulaHorarioModel extends Model
             ->where('versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()))
             ->get();
 
-        foreach ($builder->getResult() as $row) {
+        foreach ($builder->getResult() as $row)
+        {
             $ambiente = $row->ambiente_id;
             $tempo = $row->tempo_de_aula_id;
 
@@ -209,7 +214,8 @@ class AulaHorarioModel extends Model
 
             //die($this->db->getLastQuery());
 
-            if ($builder3->getNumRows() > 0) {
+            if ($builder3->getNumRows() > 0)
+            {
                 return $builder3->getRowArray()['theid']; // Conflito encontrado, retorna o ID do horário de aula em conflito
             }
         }
@@ -217,39 +223,42 @@ class AulaHorarioModel extends Model
         return 0; // Sem conflito
     }
 
-    public function destacandoConflitoAmbiente($horarioId)
+    public function destacandoConflitoAmbiente($horarioId, $idAula)
     {
         $ambientes = $this->db->table('ambientes')
             ->select('id, nome')
             ->get()->getResultArray();
-        
-        if (!$ambientes) {
-            return null; 
+
+        if (!$ambientes)
+        {
+            return null;
         }
 
         $tempo = $this->db->table('tempos_de_aula')
             ->select('dia_semana, hora_inicio, minuto_inicio, hora_fim, minuto_fim')
             ->where('id', $horarioId)
-
             ->get()->getRowArray();
 
-
-        if (!$tempo) {
-            return null; 
+        if (!$tempo)
+        {
+            return null;
         }
 
-        $novoInicio = $tempo['hora_inicio']*60 + $tempo['minuto_inicio'];
-        $novoFim   = $tempo['hora_fim']*60   + $tempo['minuto_fim'];
+        $novoInicio = $tempo['hora_inicio'] * 60 + $tempo['minuto_inicio'];
+        $novoFim   = $tempo['hora_fim'] * 60   + $tempo['minuto_fim'];
 
         $ambientesConflitantes = [];
+
         //Para cada ambiente, checa conflitos
-        foreach ($ambientes as $amb) 
+        foreach ($ambientes as $amb)
         {
             $builder = $this->select('aula_horario.id as conflito_id')
                 ->join('tempos_de_aula t', 'aula_horario.tempo_de_aula_id = t.id')
                 ->join('aula_horario_ambiente aha', 'aha.aula_horario_id = aula_horario.id')
                 ->where('aha.ambiente_id', $amb['id'])
                 ->where('t.dia_semana', $tempo['dia_semana'])
+                ->where('aula_horario.id !=', $horarioId)
+                ->where('aula_horario.aula_id !=', $idAula)
                 ->where('versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()))
                 ->groupStart()
                     ->where('aula_horario.bypass', null)
@@ -257,24 +266,24 @@ class AulaHorarioModel extends Model
                 ->groupEnd()
                 ->groupStart()
                     ->where('(t.hora_inicio*60 + t.minuto_inicio) <', $novoFim)
-                    ->where($novoInicio.' < (t.hora_fim*60 + t.minuto_fim)', null, false)
+                    ->where($novoInicio . ' < (t.hora_fim*60 + t.minuto_fim)', null, false)
                 ->groupEnd();
 
             $conflitoDetectado = $builder->get()->getResultArray();
-            
-            foreach($conflitoDetectado as $conflito) 
+
+            foreach ($conflitoDetectado as $conflito)
             {
                 $ambientesConflitantes[] = [
                     'conflito_id' => $conflito['conflito_id'],
                     'ambiente_id' => $amb['id'],
                     'nome_ambiente' => $amb['nome'],
-                ]; 
+                ];
             }
-        } 
+        }
 
-        if (!empty($ambientesConflitantes)) 
+        if (!empty($ambientesConflitantes))
         {
-            return $ambientesConflitantes ?? null; 
+            return $ambientesConflitantes ?? null;
         }
     }
 
@@ -290,7 +299,8 @@ class AulaHorarioModel extends Model
             ->where('versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()))
             ->get();
 
-        foreach ($builder->getResult() as $row) {
+        foreach ($builder->getResult() as $row)
+        {
             $professor = $row->professor_id;
             $tempo = $row->tempo_de_aula_id;
 
@@ -314,7 +324,8 @@ class AulaHorarioModel extends Model
                 ->where('versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()))
                 ->get();
 
-            if ($builder3->getNumRows() > 0) {
+            if ($builder3->getNumRows() > 0)
+            {
                 return $builder3->getRowArray()['theid']; // Conflito encontrado, retorna o ID do horário de aula em conflito
             }
         }
@@ -332,7 +343,8 @@ class AulaHorarioModel extends Model
             ->get();
 
         // Iterar sobre os resultados
-        foreach ($builder->getResult() as $row) {
+        foreach ($builder->getResult() as $row)
+        {
             $professor = $row->professor_id;
             $tempo = $row->tempo_de_aula_id;
 
@@ -353,7 +365,8 @@ class AulaHorarioModel extends Model
                 ->where('(tempos_de_aula.hora_fim * 60 + tempos_de_aula.minuto_fim) >', $hora_inicio * 60 + $minuto_inicio)
                 ->get();
 
-            if ($builder3->getNumRows() > 0) {
+            if ($builder3->getNumRows() > 0)
+            {
                 return $builder3->getRowArray()['theid']; // Conflito encontrado, retorna o ID do da regra conflitante do professor
             }
         }
@@ -371,7 +384,8 @@ class AulaHorarioModel extends Model
             ->get();
 
         // Iterar sobre os resultados, para o caso de mais de um professor na aula
-        foreach ($builder->getResult() as $row) {
+        foreach ($builder->getResult() as $row)
+        {
             $professor = $row->professor_id;
             $tempo = $row->tempo_de_aula_id;
 
@@ -392,7 +406,8 @@ class AulaHorarioModel extends Model
                 ->where('versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()))
                 ->get();
 
-            foreach ($builder2->getResult() as $row2) {
+            foreach ($builder2->getResult() as $row2)
+            {
                 $hora_inicio = $row2->hora_inicio;
 
                 if ($hora_inicio < 12)
@@ -402,7 +417,8 @@ class AulaHorarioModel extends Model
                 else if ($hora_inicio >= 18)
                     $noite = true;
 
-                if ($manha && $tarde && $noite) {
+                if ($manha && $tarde && $noite)
+                {
                     return 1; // Três turnos para o dia
                 }
             }
@@ -421,7 +437,8 @@ class AulaHorarioModel extends Model
             ->get();
 
         // Iterar sobre os resultados, para o caso de mais de um professor na aula
-        foreach ($builder->getResult() as $row) {
+        foreach ($builder->getResult() as $row)
+        {
             $professor = $row->professor_id;
             $tempo = $row->tempo_de_aula_id;
 
@@ -462,12 +479,14 @@ class AulaHorarioModel extends Model
                 ->where('versao_id', (new VersoesModel())->getVersaoByUser(auth()->id()))
                 ->get();
 
-            foreach ($builder2->getResult() as $row2) {
+            foreach ($builder2->getResult() as $row2)
+            {
                 //dados da aula vinda do banco de dados
                 $timestamp_inicio = $row2->hora_inicio * 60 + $row2->minuto_inicio;
                 $timestamp_fim = $row2->hora_fim * 60 + $row2->minuto_fim;
 
-                if ($row2->hora_inicio < 12) {
+                if ($row2->hora_inicio < 12)
+                {
                     $manha = true;
 
                     /*if($row2->dia_semana == $dia_semana && $timestamp_inicio < $menor_inicio_manha) //manhã de hoje - inicio
@@ -487,7 +506,9 @@ class AulaHorarioModel extends Model
                         $amanha_manha_inicio = $timestamp_inicio;
                         $amanha_manha_inicio_aulaid = $row2->theid;
                     }
-                } else if ($row2->hora_inicio >= 12 && $row2->hora_inicio < 18) {
+                }
+                else if ($row2->hora_inicio >= 12 && $row2->hora_inicio < 18)
+                {
                     $tarde = true;
 
                     if ($row2->dia_semana == $dia_semana && $timestamp_inicio < $menor_inicio_tarde) //tarde de hoje
@@ -501,7 +522,9 @@ class AulaHorarioModel extends Model
                         $maior_fim_tarde = $timestamp_fim;
                         $maior_fim_tarde_aulaid = $row2->theid;
                     }
-                } else if ($row2->hora_inicio >= 18) {
+                }
+                else if ($row2->hora_inicio >= 18)
+                {
                     $noite = true;
 
                     if ($row2->dia_semana == $dia_semana && $timestamp_inicio < $menor_inicio_noite) //noite de hoje - inicio
@@ -525,7 +548,8 @@ class AulaHorarioModel extends Model
             }
 
             // aula atual manhã, e tem aula a tarde
-            if (($aula_turno == 1 && $tarde)) {
+            if (($aula_turno == 1 && $tarde))
+            {
                 if (($menor_inicio_tarde - $aula_timestamp_fim) < (60)) // uma hora de intervalo
                     return "1-" . ($menor_inicio_tarde - $aula_timestamp_fim) . "-" . $menor_inicio_tarde_aulaid;
                 //problema entre manhã e tarde = 1
@@ -534,7 +558,8 @@ class AulaHorarioModel extends Model
             }
 
             // aula atual a tarde, e tem aula de manhã
-            if ($aula_turno == 2 && $manha) {
+            if ($aula_turno == 2 && $manha)
+            {
                 if (($aula_timestamp_inicio - $maior_fim_manha) < (60)) // uma hora de intervalo
                     return "1-" . ($aula_timestamp_inicio - $maior_fim_manha) . "-" . $maior_fim_manha_aulaid;
                 //problema entre manhã e tarde = 1
@@ -543,7 +568,8 @@ class AulaHorarioModel extends Model
             }
 
             // aula atual a tarde, e tem aula a noite
-            if ($aula_turno == 2 && $noite) {
+            if ($aula_turno == 2 && $noite)
+            {
                 if (($menor_inicio_noite - $aula_timestamp_fim) < (60)) // uma hora de intervalo
                     return "2-" . ($menor_inicio_noite - $aula_timestamp_fim) . "-" . $menor_inicio_noite_aulaid;
                 //problema entre tarde e noite = 2
@@ -552,7 +578,8 @@ class AulaHorarioModel extends Model
             }
 
             // aula atual a noite, e tem aula a tarde
-            if ($aula_turno == 3 && $tarde) {
+            if ($aula_turno == 3 && $tarde)
+            {
                 if (($aula_timestamp_inicio - $maior_fim_tarde) < (60)) // uma hora de intervalo
                     return "2-" . ($aula_timestamp_inicio - $maior_fim_tarde) . "-" . $maior_fim_tarde_aulaid;
                 //problema entre tarde e noite = 2
@@ -561,7 +588,8 @@ class AulaHorarioModel extends Model
             }
 
             // aula atual noite, e tem aula amanhã de manhã
-            if ($aula_turno == 3 && $amanha_manha_inicio != 9999999) {
+            if ($aula_turno == 3 && $amanha_manha_inicio != 9999999)
+            {
                 if ((($amanha_manha_inicio + 1440) - $aula_timestamp_fim) < (11 * 60)) // onze horas de intervalo
                     return "3-" . (($amanha_manha_inicio + 1440) - $aula_timestamp_fim) . "-" . $amanha_manha_inicio_aulaid;
                 //problema entre noite e manhã do dia seguinte = 3
@@ -570,7 +598,8 @@ class AulaHorarioModel extends Model
             }
 
             // aula atual manhã, e tem aula ontem a noite
-            if ($aula_turno == 1 && $ontem_noite_fim != 0) {
+            if ($aula_turno == 1 && $ontem_noite_fim != 0)
+            {
                 if ((($aula_timestamp_inicio + 1440) - $ontem_noite_fim) < (11 * 60)) // onze horas de intervalo
                     return "4-" . (($aula_timestamp_inicio + 1440) - $ontem_noite_fim) . "-" . $ontem_noite_fim_aulaid;
                 //problema entre manhã e noite do dia anterior = 4
@@ -598,9 +627,12 @@ class AulaHorarioModel extends Model
 
     public function destacarAulaHorario($aula_horario_id)
     {
-        try {
+        try
+        {
             return $this->update($aula_horario_id, ['destaque' => 1]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e)
+        {
             log_message('error', 'Erro ao destacar aula horário: ' . $e->getMessage());
             return false;
         }
@@ -608,9 +640,12 @@ class AulaHorarioModel extends Model
 
     public function desDestacarAulaHorario($aula_horario_id)
     {
-        try {
+        try
+        {
             return $this->update($aula_horario_id, ['destaque' => 0]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e)
+        {
             log_message('error', 'Erro ao remover destaque de aula horário: ' . $e->getMessage());
             return false;
         }
@@ -640,7 +675,7 @@ class AulaHorarioModel extends Model
     }
 
     public function countConflitosProfessor(int $versaoId): int
-    {   
+    {
         $sqlProf = "
             SELECT COUNT(DISTINCT ah1.id) AS total
             FROM aula_horario ah1
@@ -721,20 +756,22 @@ class AulaHorarioModel extends Model
 
         // 1. Conflito de Choque de Ambiente
         $choqueAmbiente = $this->choqueAmbiente($aulaHorarioId);
-        if ($choqueAmbiente > 0) {
+        if ($choqueAmbiente > 0)
+        {
             $conflitos['AMBIENTE'] = $choqueAmbiente;
         }
 
         // 2. Conflito de Choque de Docente
         $choqueDocente = $this->choqueDocente($aulaHorarioId);
-        if ($choqueDocente > 0) {
+        if ($choqueDocente > 0)
+        {
             $conflitos['PROFESSOR'] = $choqueDocente;
         }
 
         return $conflitos;
     }
 
-    public function countTempoEntreTurnos(int $versaoId): int 
+    public function countTempoEntreTurnos(int $versaoId): int
     {
         $sqlIntervalo = "
             WITH base AS (
@@ -806,8 +843,7 @@ class AulaHorarioModel extends Model
         ";
 
         $conflitos = $this->db->query($sqlIntervalo, ['v' => $versaoId])->getRowArray();
-        // \Kint\Kint::$mode_default = \Kint\Kint::MODE_PLAIN;
-        // dd($conflitos); 
+ 
         return (int)($conflitos['total'] ?? 0);
     }
-}   
+}
