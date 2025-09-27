@@ -46,8 +46,21 @@ class Aulas extends BaseController
 		$aula = new AulasModel();
 		$aula_prof = new AulaProfessorModel();
 		$versaoModel = new VersoesModel();
+		$versaoId = (new \App\Models\VersoesModel())->getVersaoByUser(auth()->id());
 
 		foreach ($dadosPost['turmas'] as $k => $v) {
+
+			$aulaExistente = $aula
+		->where('disciplina_id', $dadosPost['disciplina'])
+		->where('versao_id', $versaoId)
+		->where('turma_id', $v)
+		->first();
+
+		if($aulaExistente) {
+				$mensagem = "<b>Não é possível cadastrar uma aula com disciplina repetida!</b>";
+				return $mensagem;
+		}
+
 			$insert = [
 				"disciplina_id" => $dadosPost['disciplina'],
 				"turma_id" => $v,
