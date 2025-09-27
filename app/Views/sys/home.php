@@ -272,10 +272,13 @@ document.addEventListener("DOMContentLoaded", function () {
     return out.filter(Boolean);
   }
 
-  async function fetchDetalhePorId(id) {
+  async function fetchDetalhePorId(id, tipo) {
+    console.log(id, tipo)
     try {
-      const r = await fetch(`${ENDPOINT_POR_ID}/${id}`);
-      const data = await r.json();
+      const response = await fetch(`${ENDPOINT_POR_ID}/${id}/${tipo}`);
+      const data = await response.json();
+
+      console.log(data, 'here');
 
       // Caso o endpoint retorne somente IDs conflitantes:
       if (Array.isArray(data) || typeof data === 'number' || typeof data === 'string') {
@@ -287,12 +290,14 @@ document.addEventListener("DOMContentLoaded", function () {
           link_editar: "<?= base_url('sys/tabela-horarios/editar/') ?>"+id
         };
       }
-    //    console.log(data)
+
       // Caso retorne objeto detalhado:
       return {
         aula_horario_id: data.aula_horario_id ?? id,
-        ambiente: data.nome ?? data.nome ?? 'Ambiente Teste Att 1',
-        motivo: data.motivo ?? data.descricao ?? 'Conflito detectado',
+        ambiente: data.ambiente ?? data.ambiente ?? '---',
+        curso: data.curso ?? data.curso ?? '---',
+        turma: data.turma ?? data.turma ?? '---',
+        dia: data.dia ?? data.dia ?? '---',
         link_editar: data.link_editar ?? ("<?= base_url('sys/tabela-horarios/editar/') ?>"+id)
       };
     } catch (e) {
@@ -300,7 +305,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return {
         aula_horario_id: id,
         ambiente: '',
-        professor: '',
+        curso: '',
         turma: '',
         dia: '',
         tempo: '',
@@ -311,6 +316,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function renderConflitos(itens, modalEl) {
+    console.log()
     const tbody = modalEl.querySelector('#tbl-conflitos-body');
     tbody.innerHTML = '';
     if (!itens.length) {
@@ -322,7 +328,9 @@ document.addEventListener("DOMContentLoaded", function () {
         <td>${i + 1}</td>
         <td>${row.aula_horario_id ?? ''}</td>
         <td>${row.ambiente ?? ''}</td>
-        <td>${row.motivo ?? ''}</td>
+        <td>${row.curso ?? 'Curso'}</td>
+        <td>${row.turma ?? 'Turma'}</td>
+        <td>${row.dia ?? ''}</td>
         <td>${row.link_editar ? `<a class="btn btn-sm btn-outline-primary" target="_blank" href="${row.link_editar}">Abrir</a>` : ''}</td>
       </tr>
     `).join('');
@@ -343,8 +351,20 @@ document.addEventListener("DOMContentLoaded", function () {
       tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhum item.</td></tr>';
       return;
     }
+    
+    // mapeie o rótulo para um slug sem acento/hífen para a URL
+    const tipoSlugMap = {
+      'CONFLITO-AMBIENTE':  'ambiente',
+      'CONFLITO-PROFESSOR': 'professor',
+      'CONFLITO-TURNOS':    'turnos',
+      'RESTRIÇÃO-DOCENTE':  'restricao',
+      'CONFLITO-INTERVALO': 'intervalo'
+    };
 
-    const itens = await pool(ids, fetchDetalhePorId, 8);
+     const tipo = tipoSlugMap[tipoChave];
+
+    const itens = await pool(ids, (id) => fetchDetalhePorId(id, tipo), 8);
+
     renderConflitos(itens, modalEl);
 
     loading.style.display = 'none';
@@ -357,6 +377,7 @@ document.addEventListener("DOMContentLoaded", function () {
     .then(data => {
       container.innerHTML = '';
 
+      console.log(data)
       // Guarda os IDs por tipo DENTRO do .then (aqui 'data' existe)
       const conflitoIdsByTipo = {};
       // Normaliza só o que existe no payload

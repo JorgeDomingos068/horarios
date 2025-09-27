@@ -655,7 +655,6 @@ class AulaHorarioModel extends Model
         $a_ini_min    = (int)$ah['hora_inicio'] * 60 + (int)$ah['minuto_inicio'];
         $a_fim_min    = (int)$ah['hora_fim']    * 60 + (int)$ah['minuto_fim'];
 
-        // 2) Busca TODOS os AH que colidem nesse ambiente/mesmo dia
         $rows = $this->select('aula_horario.id AS theid, ambientes.nome')
             ->join('tempos_de_aula', 'aula_horario.tempo_de_aula_id = tempos_de_aula.id')
             ->join('ambientes', 'ambientes.id = aula_horario_ambiente.ambiente_id')
@@ -676,6 +675,136 @@ class AulaHorarioModel extends Model
             $rows
         )));
     }
+
+    public function montarDetalheDoAH($id, $tipo)
+    {   
+
+        $nomeDoDia = function ($numero) {
+            $dias = [
+                1 => 'Segunda-feira',
+                2 => 'Terça-feira',
+                3 => 'Quarta-feira',
+                4 => 'Quinta-feira',
+                5 => 'Sexta-feira',
+                6 => 'Sábado',
+                7 => 'Domingo'
+            ];
+            return $dias[$numero];
+        };
+
+        $sql = "
+        SELECT
+            ah.id AS aula_horario_id,
+            ah.versao_id,
+
+            t1.dia_semana,
+            t1.hora_inicio AS a_ini_h, t1.minuto_inicio AS a_ini_m,
+            t1.hora_fim AS a_fim_h, t1.minuto_fim AS a_fim_m,
+
+            t2.dia_semana AS b_dia,
+            t2.hora_inicio AS b_ini_h, t2.minuto_inicio AS b_ini_m,
+            t2.hora_fim AS b_fim_h, t2.minuto_fim AS b_fim_m,
+
+            p.nome AS professor_nome,
+            ta.sigla AS turma_nome,
+            a1.ambiente_id AS ambiente_id,
+            amb1.nome AS ambiente_nome,
+            c.nome AS curso_nome
+
+        FROM aula_horario ah
+
+        JOIN tempos_de_aula t1 ON t1.id = ah.tempo_de_aula_id
+
+        JOIN aula_horario_ambiente a1 ON a1.aula_horario_id = ah.id
+        JOIN aula_horario_ambiente a2 ON a2.ambiente_id = a1.ambiente_id
+
+        JOIN ambientes amb1 ON amb1.id = a1.ambiente_id
+
+        JOIN aula_horario ah2 ON ah2.id = a2.aula_horario_id AND ah2.id != ah.id
+        JOIN tempos_de_aula t2 ON t2.id = ah2.tempo_de_aula_id
+        
+        LEFT JOIN aula_professor ahp1 ON ahp1.aula_id = ah.id 
+        LEFT JOIN professores p ON p.id = ahp1.professor_id
+        
+        LEFT JOIN aulas aul ON aul.id = ah.aula_id
+        LEFT JOIN turmas ta ON ta.id = aul.turma_id
+        LEFT JOIN cursos c ON c.id = ta.curso_id
+        
+        WHERE ah.id = :id: AND ah.versao_id = :versao_id:
+        ORDER BY ah.id ASC;
+
+        ";
+
+    $params = [
+    'id' => $id,
+    'versao_id' => (int) (new VersoesModel())->getVersaoByUser(auth()->id()), // garanta que é escalar
+    ];
+
+    $query = $this->db->query($sql, $params);
+
+
+    // 3) Verifica se encontrou o conflito
+    $conflito = $query->getRowArray();
+
+    if (!$conflito) {
+        return null; // Caso não encontre conflito
+    }
+
+    // 4) Dependendo do tipo de conflito, retorna os dados necessários
+    switch ($tipo) {
+        case 'ambiente':
+            return [
+                'aula_horario_id' => $conflito['aula_horario_id'],
+                'ambiente' => $conflito['ambiente_nome'],
+                'dia' => $nomeDoDia($conflito['dia_semana']),
+                // 'hora_inicio' => $conflito['a_ini_h'] . ':' . $conflito['a_ini_m'],
+                // 'hora_fim' => $conflito['a_fim_h'] . ':' . $conflito['a_fim_m'],
+                'professor' => $conflito['professor_nome'] ?? 'Não definido',
+                'turma' => $conflito['turma_nome'] ?? 'Não definida',
+                'curso' => $conflito['curso_nome'] ?? 'Não definido',
+                'ambiente_id' => $conflito['ambiente_id']
+            ];
+
+        // case 'CONFLITO-PROFESSOR':
+        //     return [
+        //         'aula_horario_id' => $conflito['aula_horario_id'],
+        //         'professor' => $conflito['professor_nome'],
+        //         'dia' => $conflito['dia_semana'],
+        //         'hora_inicio' => $conflito['a_ini_h'] . ':' . $conflito['a_ini_m'],
+        //         'hora_fim' => $conflito['a_fim_h'] . ':' . $conflito['a_fim_m'],
+        //         'motivo' => 'Conflito de professor',
+        //         'turma' => $conflito['turma_nome'] ?? 'Não definida',
+        //         'tempo' => $conflito['tempo_nome'] ?? 'Não definido',
+        //         'ambiente' => $conflito['ambiente_nome'] ?? 'Não definido'
+        //     ];
+
+        // case 'CONFLITO-TURNOS':
+        //     return [
+        //         'aula_horario_id' => $conflito['aula_horario_id'],
+        //         'dia' => $conflito['dia_semana'],
+        //         'hora_inicio' => $conflito['a_ini_h'] . ':' . $conflito['a_ini_m'],
+        //         'hora_fim' => $conflito['a_fim_h'] . ':' . $conflito['a_fim_m'],
+        //         'motivo' => 'Conflito de turnos',
+        //         'professor' => $conflito['professor_nome'] ?? 'Não definido',
+        //         'turma' => $conflito['turma_nome'] ?? 'Não definida',
+        //         'tempo' => $conflito['tempo_nome'] ?? 'Não definido',
+        //         'ambiente' => $conflito['ambiente_nome'] ?? 'Não definido'
+        //     ];
+
+        // case 'RESTRIÇÃO-DOCENTE':
+        //     return [
+        //         'aula_horario_id' => $conflito['aula_horario_id'],
+        //         'motivo' => 'Restrição docente',
+        //         'professor' => $conflito['professor_nome'] ?? 'Não definido',
+        //         'ambiente' => $conflito['ambiente_nome'] ?? 'Não definido',
+        //         'turma' => $conflito['turma_nome'] ?? 'Não definida'
+        //     ];
+
+        default:
+            return null; // Se o tipo de conflito não for reconhecido
+    }
+}
+
 
     public function countConflitosProfessor(int $versaoId): int
     {   

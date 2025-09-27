@@ -21,7 +21,9 @@
                 <th>#</th>
                 <th>Aula/Horário</th>
                 <th>Ambiente</th>
-                <th>Motivo/Regra</th>
+                <th>Curso</th>
+                <th>Turma</th>
+                <th>Dia</th>
                 <th>Ações</th>
               </tr>
             </thead>

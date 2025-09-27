@@ -53,5 +53,21 @@ class AulaHorarioController extends BaseController
           ]);
       }
       return $this->response->setJSON(['status' => 'ok']);
-  }  
+  } 
+  
+   public function getConflitoDetalhes(int $id, string $tipo)
+    {
+
+        $aulaHorarioModel = new AulaHorarioModel();
+        // Chama a função montarDetalheDoAH que faz os JOINs e retorna os dados
+        $detalhes = $aulaHorarioModel->montarDetalheDoAH($id, $tipo);
+
+        if (!$detalhes) {
+            return $this->response->setStatusCode(404, 'Conflito não encontrado')->setJSON([
+                'error' => 'Conflito não encontrado',
+            ]);
+        }
+
+        return $this->response->setStatusCode(200)->setJSON($detalhes);
+    }
 }
