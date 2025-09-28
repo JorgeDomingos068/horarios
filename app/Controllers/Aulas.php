@@ -12,7 +12,6 @@ use App\Models\DisciplinasModel;
 use App\Models\ProfessorModel;
 use App\Models\MatrizCurricularModel;
 use App\Models\VersoesModel;
-use App\Models\AulaHorarioModel;
 use CodeIgniter\Exceptions\ReferenciaException;
 
 class Aulas extends BaseController
@@ -51,14 +50,21 @@ class Aulas extends BaseController
 		foreach ($dadosPost['turmas'] as $k => $v) {
 
 			$aulaExistente = $aula
+		->select('turmas.sigla AS sigla_turma, disciplinas.nome AS nome_disciplina')
+		->join('turmas', 'turmas.id = aulas.turma_id')
+		->join('disciplinas', 'disciplinas.id = aulas.disciplina_id')
 		->where('disciplina_id', $dadosPost['disciplina'])
 		->where('versao_id', $versaoId)
 		->where('turma_id', $v)
 		->first();
 
 		if($aulaExistente) {
-				$mensagem = "<b>Não é possível cadastrar uma aula com disciplina repetida!</b>";
-				return $mensagem;
+
+				return $this->response->setJSON([
+        'message' => 'Não é possível cadastrar uma aula com disciplina repetida!</br>'
+								.'Turma: '.$aulaExistente['sigla_turma'].'</br>'
+								.'Disciplina: '.$aulaExistente['nome_disciplina']
+    ]);
 		}
 
 			$insert = [
@@ -135,7 +141,7 @@ class Aulas extends BaseController
 				if ($restricoes['horarios']) {
 					$mensagem = $mensagem . "<br><b>Horário(s) relacionado(s) a ela:</b><br><ul>";
 					foreach($restricoes['horarios'] as $h) {
-						$mensagem = $mensagem . "<li><b>Dia/Horário:</b> $h->dia_semana | $h->intervalo</li>";
+						$mensagem = $mensagem . "<li><b>Dia/Horárioooooo:</b> $h->dia_semana | $h->intervalo</li>";
 					}
 					$mensagem = $mensagem . "</ul>";
 				}
