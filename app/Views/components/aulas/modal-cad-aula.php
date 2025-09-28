@@ -214,7 +214,7 @@
                         // Recarregar a tabela de aulas
                         table.ajax.reload();
                     } else {
-                        alert("Erro ao cadastrar a aula: " + response);
+                        $.toast({ heading:'erro', text:response.message, icon:'error' });
                     }
                 },
                 error: function() {
