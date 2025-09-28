@@ -244,7 +244,6 @@
                     </div>
                 </div>
             </div>
-            <!-- FIM QUADRO DE HORÁRIOS -->
         </div>
     </div>
 </div>
@@ -255,9 +254,7 @@ document.addEventListener("DOMContentLoaded", function () {
     <div class="col-12"><div class="alert alert-secondary">Carregando conflitos…</div></div>
   `;
 
-  // ---- helpers (pool, fetchDetalhe, render, carregarModal) ----
   const ENDPOINT_POR_ID = "<?= base_url('sys/tabela-horarios/choque-ambiente') ?>"; 
-  // Se tiver um endpoint mais detalhado por ID, substitua a linha acima.
 
   async function pool(items, worker, size = 8) {
     const out = new Array(items.length);
@@ -280,7 +277,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
       console.log(data, 'here');
 
-      // Caso o endpoint retorne somente IDs conflitantes:
       if (Array.isArray(data) || typeof data === 'number' || typeof data === 'string') {
         const lista = Array.isArray(data) ? data : [data];
         return {
@@ -291,10 +287,10 @@ document.addEventListener("DOMContentLoaded", function () {
         };
       }
 
-      // Caso retorne objeto detalhado:
       return {
         aula_horario_id: data.aula_horario_id ?? id,
         ambiente: data.ambiente ?? data.ambiente ?? '---',
+        professor: data.professor ?? data.professor ?? '---',
         curso: data.curso ?? data.curso ?? '---',
         turma: data.turma ?? data.turma ?? '---',
         dia: data.dia ?? data.dia ?? '---',
@@ -302,16 +298,6 @@ document.addEventListener("DOMContentLoaded", function () {
       };
     } catch (e) {
       console.error(e);
-      return {
-        aula_horario_id: id,
-        ambiente: '',
-        curso: '',
-        turma: '',
-        dia: '',
-        tempo: '',
-        motivo: 'Erro ao consultar',
-        link_editar: "<?= base_url('sys/tabela-horarios/editar/') ?>"+id
-      };
     }
   }
 
@@ -328,6 +314,7 @@ document.addEventListener("DOMContentLoaded", function () {
         <td>${i + 1}</td>
         <td>${row.aula_horario_id ?? ''}</td>
         <td>${row.ambiente ?? ''}</td>
+        <td>${row.professor ?? ''}</td>
         <td>${row.curso ?? 'Curso'}</td>
         <td>${row.turma ?? 'Turma'}</td>
         <td>${row.dia ?? ''}</td>
@@ -352,7 +339,6 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
     
-    // mapeie o rótulo para um slug sem acento/hífen para a URL
     const tipoSlugMap = {
       'CONFLITO-AMBIENTE':  'ambiente',
       'CONFLITO-PROFESSOR': 'professor',
@@ -371,16 +357,14 @@ document.addEventListener("DOMContentLoaded", function () {
     resumo.textContent = `${itens.length} registro(s).`;
   }
 
-  // ---- carrega a Dash ----
   fetch("http://localhost/horarios/public/sys/tabela-horarios/verificar-todos-conflitos")
     .then(r => r.json())
     .then(data => {
       container.innerHTML = '';
 
       console.log(data)
-      // Guarda os IDs por tipo DENTRO do .then (aqui 'data' existe)
+      // Guarda os IDs por tipo 
       const conflitoIdsByTipo = {};
-      // Normaliza só o que existe no payload
       ['CONFLITO-AMBIENTE','CONFLITO-INTERVALO','CONFLITO-PROFESSOR','CONFLITO-TURNOS','RESTRIÇÃO-DOCENTE']
         .forEach(key => {
           const arr = Array.isArray(data[key]) ? data[key] : [];
@@ -388,19 +372,18 @@ document.addEventListener("DOMContentLoaded", function () {
             .map(x => parseInt(x.id_conflito, 10))
             .filter(Number.isFinite);
         });
+
       // Torna acessível no handler da modal
       window.conflitoIdsByTipo = conflitoIdsByTipo;
 
-      // Mapa de cards (note o count de Ambiente vem de COUNT-AMBIENTE,
-      // mas a chave de lista para a modal é CONFLITO-AMBIENTE)
       const tipos = {
         'COUNT-AMBIENTE': {
           cor: 'danger',
           icone: 'mdi-map-marker-off',
           texto: 'Conflitos de Ambiente',
-          chaveLista: 'CONFLITO-AMBIENTE' // <- passaremos esta na modal
+          chaveLista: 'CONFLITO-AMBIENTE' 
         },
-        'CONFLITO-PROFESSOR': {
+        'COUNT-PROFESSOR': {
           cor: 'warning',
           icone: 'mdi-account-alert',
           texto: 'Conflitos de Professor',
@@ -472,11 +455,10 @@ document.addEventListener("DOMContentLoaded", function () {
       console.error(err);
     });
 
-  // Handler da modal (usa window.conflitoIdsByTipo setado no .then)
   $('#modal-listar-conflitos').off('show.bs.modal').on('show.bs.modal', function (e) {
     const btn       = $(e.relatedTarget);
-    const tipoLabel = btn.data('tipo-conflito');   // rótulo
-    const tipoChave = btn.data('tipo-chave');      // ex.: 'CONFLITO-AMBIENTE'
+    const tipoLabel = btn.data('tipo-conflito');   
+    const tipoChave = btn.data('tipo-chave');      
 
     this.querySelector('#listar_conflito_tipo').textContent = tipoLabel || 'Conflitos';
     carregarConflitosDoTipo(tipoChave, this);

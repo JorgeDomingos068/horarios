@@ -24,6 +24,7 @@ class AulaHorarioController extends BaseController
       'CONFLITO-AMBIENTE' => $amb,
       'COUNT-AMBIENTE' => count($amb),
       'CONFLITO-PROFESSOR' => $prof,
+      'COUNT-PROFESSOR' => count($prof),
       'RESTRIÇÃO-DOCENTE' => $restricao,
       'CONFLITO-TURNOS' => $turnos,
       'CONFLITO-INTERVALO' => $intervalo,

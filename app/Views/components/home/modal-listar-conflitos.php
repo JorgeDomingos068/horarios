@@ -21,6 +21,7 @@
                 <th>#</th>
                 <th>Aula/Horário</th>
                 <th>Ambiente</th>
+                <th>Professor</th>
                 <th>Curso</th>
                 <th>Turma</th>
                 <th>Dia</th>
