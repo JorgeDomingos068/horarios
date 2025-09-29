@@ -298,7 +298,7 @@ document.addEventListener("DOMContentLoaded", function () {
       tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhum item encontrado.</td></tr>';
       return;
     }
-    console.log(itens)
+    
     tbody.innerHTML = itens.map((conflito, i) => `
       <tr class="text-center">
         <td>${i + 1}</td>
