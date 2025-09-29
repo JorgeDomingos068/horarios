@@ -183,4 +183,9 @@ $routes->group('sys', function ($routes) {
         $routes->post('exportar', 'Relatorios::exportar');
         $routes->post('exportarXLSX','Relatorios::exportarXLSX');
     });
+
+    $routes->group('backup', function ($routes) {
+        $routes->get('/', 'BackupController::index');
+        $routes->get('gerar', 'BackupController::backupManual');
+    });
 });

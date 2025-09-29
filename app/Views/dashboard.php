@@ -221,7 +221,7 @@
 									</a>
 								</li>
 								<li class="nav-item">
-									<a class="nav-link" href="#">
+									<a class="nav-link" href="<?php echo base_url('sys/backup'); ?>">
 										<span class="menu-icon">
 											<i class="mdi mdi-backup-restore"></i>
 										</span>
