@@ -19,7 +19,7 @@
             <thead>
               <tr class="text-center">
                 <th>#</th>
-                <th>Aula/Horário</th>
+                <th>Horário</th>
                 <th>Ambiente</th>
                 <th>Professor</th>
                 <th>Curso</th>

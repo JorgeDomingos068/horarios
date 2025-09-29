@@ -256,6 +256,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const ENDPOINT_POR_ID = "<?= base_url('sys/tabela-horarios/choque-ambiente') ?>"; 
 
+  //essa pool faz com que as consultas simultâneas ocorram de 8 em 8, evitando lentidão
   async function pool(items, worker, size = 8) {
     const out = new Array(items.length);
     let i = 0;
@@ -268,61 +269,51 @@ document.addEventListener("DOMContentLoaded", function () {
     }));
     return out.filter(Boolean);
   }
-
+  
+  //definindo como os dados vão ser buscados/listados 
   async function fetchDetalhePorId(id, tipo) {
-    console.log(id, tipo)
     try {
       const response = await fetch(`${ENDPOINT_POR_ID}/${id}/${tipo}`);
       const data = await response.json();
 
-      console.log(data, 'here');
-
-      if (Array.isArray(data) || typeof data === 'number' || typeof data === 'string') {
-        const lista = Array.isArray(data) ? data : [data];
-        return {
-          aula_horario_id: id,
-          ambiente: 'Ambiente Teste Att 1',
-          motivo: `Conflita com ${lista.filter(Boolean).join(', ')}`,
-          link_editar: "<?= base_url('sys/tabela-horarios/editar/') ?>"+id
-        };
-      }
-
       return {
-        aula_horario_id: data.aula_horario_id ?? id,
+        horario: data.horario ?? id,
         ambiente: data.ambiente ?? data.ambiente ?? '---',
         professor: data.professor ?? data.professor ?? '---',
         curso: data.curso ?? data.curso ?? '---',
         turma: data.turma ?? data.turma ?? '---',
         dia: data.dia ?? data.dia ?? '---',
-        link_editar: data.link_editar ?? ("<?= base_url('sys/tabela-horarios/editar/') ?>"+id)
+        link_editar: data.link_editar ?? ("<?= base_url('sys/tabela-horarios') ?>")
       };
     } catch (e) {
       console.error(e);
     }
   }
 
+  //mostrando o detalhamento de conflitos da modal
   function renderConflitos(itens, modalEl) {
-    console.log()
     const tbody = modalEl.querySelector('#tbl-conflitos-body');
     tbody.innerHTML = '';
     if (!itens.length) {
       tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhum item encontrado.</td></tr>';
       return;
     }
-    tbody.innerHTML = itens.map((row, i) => `
+    console.log(itens)
+    tbody.innerHTML = itens.map((conflito, i) => `
       <tr class="text-center">
         <td>${i + 1}</td>
-        <td>${row.aula_horario_id ?? ''}</td>
-        <td>${row.ambiente ?? ''}</td>
-        <td>${row.professor ?? ''}</td>
-        <td>${row.curso ?? 'Curso'}</td>
-        <td>${row.turma ?? 'Turma'}</td>
-        <td>${row.dia ?? ''}</td>
-        <td>${row.link_editar ? `<a class="btn btn-sm btn-outline-primary" target="_blank" href="${row.link_editar}">Abrir</a>` : ''}</td>
+        <td>${conflito.horario ?? ''}</td>
+        <td>${conflito.ambiente ?? ''}</td>
+        <td>${conflito.professor ?? ''}</td>
+        <td>${conflito.curso ?? ''}</td>
+        <td>${conflito.turma ?? ''}</td>
+        <td>${conflito.dia ?? ''}</td>
+        <td>${conflito.link_editar ? `<a class="btn btn-sm btn-outline-primary" target="_blank" href="${conflito.link_editar}">Abrir</a>` : ''}</td>
       </tr>
     `).join('');
   }
 
+  //carregando conflitos e buscando dados para serem listados
   async function carregarConflitosDoTipo(tipoChave, modalEl) {
     const ids = (window.conflitoIdsByTipo?.[tipoChave]) || [];
     const loading = modalEl.querySelector('#conflitos-loading');
@@ -339,7 +330,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
     
-    const tipoSlugMap = {
+    const tiposDeConflito = {
       'CONFLITO-AMBIENTE':  'ambiente',
       'CONFLITO-PROFESSOR': 'professor',
       'CONFLITO-TURNOS':    'turnos',
@@ -347,8 +338,7 @@ document.addEventListener("DOMContentLoaded", function () {
       'CONFLITO-INTERVALO': 'intervalo'
     };
 
-     const tipo = tipoSlugMap[tipoChave];
-
+     const tipo = tiposDeConflito[tipoChave];
     const itens = await pool(ids, (id) => fetchDetalhePorId(id, tipo), 8);
 
     renderConflitos(itens, modalEl);
@@ -389,19 +379,19 @@ document.addEventListener("DOMContentLoaded", function () {
           texto: 'Conflitos de Professor',
           chaveLista: 'CONFLITO-PROFESSOR'
         },
-        'CONFLITO-TURNOS': {
+        'COUNT-TURNOS': {
           cor: 'danger',
           icone: 'mdi-clock-alert-outline',
           texto: 'Conflitos de Turnos',
           chaveLista: 'CONFLITO-TURNOS'
         },
-        'RESTRIÇÃO-DOCENTE': {
+        'COUNT-RESTRIÇÃO': {
           cor: 'warning',
           icone: 'mdi-account-cancel-outline',
           texto: 'Restrição de Professor',
           chaveLista: 'RESTRIÇÃO-DOCENTE'
         },
-        'CONFLITO-INTERVALO': {
+        'COUNT-INTERVALO': {
           cor: 'info',
           icone: 'mdi-timer-off-outline',
           texto: 'Conflitos de Intervalo',

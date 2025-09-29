@@ -25,14 +25,14 @@ class AulaHorarioController extends BaseController
       'COUNT-AMBIENTE' => count($amb),
       'CONFLITO-PROFESSOR' => $prof,
       'COUNT-PROFESSOR' => count($prof),
-      'RESTRIÇÃO-DOCENTE' => $restricao,
       'CONFLITO-TURNOS' => $turnos,
+      'COUNT-TURNOS' => count($turnos),
+      'RESTRIÇÃO-DOCENTE' => $restricao,
+      'COUNT-RESTRIÇÃO' => count($restricao),
       'CONFLITO-INTERVALO' => $intervalo,
+      'COUNT-INTERVALO' => count($intervalo),
     ];
 
-    // \Kint\Kint::$mode_default = \Kint\Kint::MODE_PLAIN;
-    //     dd($conflitos); // imprime tudo e para
-    
     return $this->response->setJSON($conflitos);
   }
 
@@ -58,14 +58,12 @@ class AulaHorarioController extends BaseController
   
    public function getConflitoDetalhes(int $id, string $tipo)
     {
-
         $aulaHorarioModel = new AulaHorarioModel();
-        // Chama a função montarDetalheDoAH que faz os JOINs e retorna os dados
         $detalhes = $aulaHorarioModel->montarDetalheDoAH($id, $tipo);
 
         if (!$detalhes) {
-            return $this->response->setStatusCode(404, 'Conflito não encontrado')->setJSON([
-                'error' => 'Conflito não encontrado',
+            return $this->response->setStatusCode(404, 'Conflito Não Encontrado!')->setJSON([
+                'error' => 'Conflito Não Encontrado!',
             ]);
         }
 
