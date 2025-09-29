@@ -34,5 +34,11 @@ class AdminSeeder extends Seeder
 
         // Salva o usuário no banco de dados
         $users->save($user);
+
+        // Pega o ID do usuário recém-criado
+        $userId = $users->findById($users->getInsertID());
+
+        // Adiciona ao grupo admin
+        $userId->addGroup('admin');
     }
 }

@@ -4,7 +4,7 @@
     <div class="col-xl-12 col-sm-6 grid-margin stretch-card">
         <div class="card">
             <div class="row card-body" id="cards-conflitos">
-                Carregando conflitos...
+                <div class="alert alert-primary bg-dark text-light">Verificando conflitos...</div>
             </div>
         </div>
     </div>
@@ -435,9 +435,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (!container.innerHTML.trim()) {
         container.innerHTML = `
-          <div class="col-12">
+          
             <div class="alert alert-primary bg-dark text-light">Nenhum conflito encontrado.</div>
-          </div>`;
+          `;
       }
     })
     .catch(err => {

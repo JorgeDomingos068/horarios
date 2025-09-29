@@ -161,26 +161,23 @@ class TabelaHorarios extends BaseController
 
     public function destacarAula()
     {
-        try {
+        try 
+        {
             $dadosPost = $this->request->getPost();
             $aulaHorarioId = $dadosPost['aula_horario_id'] ?? null;
             $tipo = $dadosPost['tipo'] ?? null;
 
-            if (!$aulaHorarioId) {
-                return $this->response->setStatusCode(400)->setJSON([
-                    'success' => false,
-                    'message' => 'ID da aula horário não fornecido'
-                ]);
+            if (!$aulaHorarioId) 
+            {
+                return "0";
             }
 
             $aulaHorarioModel = new AulaHorarioModel();
             $aulaHorario = $aulaHorarioModel->find($aulaHorarioId);
 
-            if (!$aulaHorario) {
-                return $this->response->setStatusCode(404)->setJSON([
-                    'success' => false,
-                    'message' => 'Registro não encontrado'
-                ]);
+            if (!$aulaHorario) 
+            {
+                return "0";
             }
 
             // Verifica se a aula original está destacada
@@ -188,11 +185,9 @@ class TabelaHorarios extends BaseController
             $aula = $aulaModel->find($aulaHorario['aula_id']);
 
             // Bloqueia completamente se a aula original estiver destacada
-            if (isset($aula['destaque']) && $aula['destaque'] == 1) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'toast:warning:Não é possível alterar o destaque pois a aula está marcada como destacada no cadastro.|5000'
-                ]);
+            if (isset($aula['destaque']) && $aula['destaque'] == 1) 
+            {
+                return "2";
             }
 
             // Permite adicionar/remover destaque apenas se a aula original NÃO estiver destacada
@@ -200,16 +195,11 @@ class TabelaHorarios extends BaseController
                 ? $aulaHorarioModel->destacarAulaHorario($aulaHorarioId)
                 : $aulaHorarioModel->desDestacarAulaHorario($aulaHorarioId);
 
-            return $this->response->setJSON([
-                'success' => (bool)$result,
-                'message' => $result ? 'Operação realizada com sucesso' : 'Falha na operação'
-            ]);
-        } catch (\Exception $e) {
-            log_message('error', 'Erro ao destacar aula: ' . $e->getMessage());
-            return $this->response->setStatusCode(500)->setJSON([
-                'success' => false,
-                'message' => $e->getMessage()
-            ]);
+            return $result ? '1' : '0';            
+        } 
+        catch (\Exception $e) 
+        {
+            return "0";
         }
     }
 

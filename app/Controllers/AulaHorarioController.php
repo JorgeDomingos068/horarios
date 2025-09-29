@@ -8,17 +8,18 @@ use App\Models\AulaHorarioModel;
 
 class AulaHorarioController extends BaseController
 {
-  public function verificarConflitosRotina() {
+	public function verificarConflitosRotina()
+	{
 
-    $versaoId = (new \App\Models\VersoesModel())->getVersaoByUser(auth()->id());
+		$versaoId = (new \App\Models\VersoesModel())->getVersaoByUser(auth()->id());
 
-    $model = new \App\Models\AulaHorarioModel();
-    
-    $amb  = $model->countConflitosAmbiente($versaoId);
-    $prof = $model->countConflitosProfessor($versaoId);
-    $restricao = $model->countRestricaoDocente($versaoId);
-    $turnos = $model->countTresTurnos($versaoId);
-    $intervalo = $model->countTempoEntreTurnos($versaoId);
+		$model = new \App\Models\AulaHorarioModel();
+
+		$amb  = $model->countConflitosAmbiente($versaoId);
+		$prof = $model->countConflitosProfessor($versaoId);
+		$restricao = $model->countRestricaoDocente($versaoId);
+		$turnos = $model->countTresTurnos($versaoId);
+		$intervalo = $model->countTempoEntreTurnos($versaoId);
 
     $conflitos = [
       'CONFLITO-AMBIENTE' => $amb,
@@ -33,16 +34,17 @@ class AulaHorarioController extends BaseController
       'COUNT-INTERVALO' => count($intervalo),
     ];
 
-    return $this->response->setJSON($conflitos);
-  }
+		return $this->response->setJSON($conflitos);
+	}
 
-  public function destacarConflitosAmbiente()
-  {
-      $data = $this->request->getPost();
-      $idTempoDeAula = $data['tempo_de_aula_id'];
+	public function destacarConflitosAmbiente()
+	{
+		$data = $this->request->getPost();
+		$idTempoDeAula = $data['tempo_de_aula_id'];
+		$idAula = $data['aula_id'];
 
-      $aulaHorarioModel = new AulaHorarioModel();
-      $conflitos = $aulaHorarioModel->destacandoConflitoAmbiente($idTempoDeAula);
+		$aulaHorarioModel = new AulaHorarioModel();
+		$conflitos = $aulaHorarioModel->destacandoConflitoAmbiente($idTempoDeAula, $idAula);
 
       if (!empty($conflitos)) {
           return $this->response->setJSON(
