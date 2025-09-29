@@ -250,9 +250,7 @@
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   const container = document.getElementById('cards-conflitos');
-  container.innerHTML = `
-    <div class="col-12"><div class="alert alert-secondary">Carregando conflitos…</div></div>
-  `;
+  container.innerHTML = '<div class="alert alert-primary bg-dark text-light">Verificando conflitos...</div>';
 
   const ENDPOINT_POR_ID = "<?= base_url('sys/tabela-horarios/choque-ambiente') ?>"; 
 
