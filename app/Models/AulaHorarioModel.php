@@ -651,10 +651,10 @@ class AulaHorarioModel extends Model
         }
     }
 
-    public function countConflitosAmbiente(int $versaoId): int
+    public function countConflitosAmbiente(int $versaoId)
     {
         $sqlAmbiente = "
-            SELECT COUNT(DISTINCT ah1.id) as total
+            SELECT DISTINCT ah1.id AS id_conflito
             FROM aula_horario ah1
             JOIN tempos_de_aula t1  ON t1.id = ah1.tempo_de_aula_id
             JOIN aula_horario_ambiente a1 ON a1.aula_horario_id = ah1.id
@@ -671,13 +671,14 @@ class AulaHorarioModel extends Model
         ";
 
         $conflitos = $this->db->query($sqlAmbiente, ['v' => $versaoId])->getResultArray();
-        return (int)($conflitos['total'] ?? 0);
+              
+        return ($conflitos ?? 0);
     }
 
-    public function countConflitosProfessor(int $versaoId): int
-    {
+        public function countConflitosProfessor(int $versaoId)
+    {   
         $sqlProf = "
-            SELECT COUNT(DISTINCT ah1.id) AS total
+            SELECT DISTINCT ah1.id AS id_conflito
             FROM aula_horario ah1
             JOIN tempos_de_aula t1  ON t1.id = ah1.tempo_de_aula_id
             JOIN aula_professor ap1 ON ap1.aula_id = ah1.aula_id
@@ -694,14 +695,50 @@ class AulaHorarioModel extends Model
               AND (t1.hora_inicio*60 + t1.minuto_inicio) <  (t2.hora_fim*60 + t2.minuto_fim)
               AND (t2.hora_inicio*60 + t2.minuto_inicio) <  (t1.hora_fim*60 + t1.minuto_fim)
         ";
-        $conflitos = $this->db->query($sqlProf, ['v' => $versaoId])->getRowArray();
-        return (int)($conflitos['total'] ?? 0);
+        $conflitos = $this->db->query($sqlProf, ['v' => $versaoId])->getResultArray();
+        return ($conflitos ?? 0);
     }
 
-    public function countRestricaoDocente(int $versaoId): int
+
+    public function countTresTurnos(int $versaoId): array
+    {
+        $sql = "
+            SELECT
+                MIN(ah.id) AS id_conflito,
+                ap.professor_id,
+                p.nome      AS professor_nome,
+                t.dia_semana
+            FROM aula_horario ah
+            JOIN aula_professor ap ON ap.aula_id = ah.aula_id
+            JOIN tempos_de_aula t  ON t.id = ah.tempo_de_aula_id
+            JOIN (
+                SELECT ap2.professor_id, t2.dia_semana
+                FROM aula_horario ah2
+                JOIN aula_professor ap2 ON ap2.aula_id = ah2.aula_id
+                JOIN tempos_de_aula t2  ON t2.id = ah2.tempo_de_aula_id
+                WHERE ah2.versao_id = :v:
+                AND (ah2.bypass IS NULL OR ah2.bypass = '0')
+                GROUP BY ap2.professor_id, t2.dia_semana
+                HAVING COUNT(DISTINCT
+                    CASE WHEN t2.hora_inicio < 12 THEN 1
+                        WHEN t2.hora_inicio < 18 THEN 2
+                        ELSE 3 END
+                ) >= 3
+            ) s ON s.professor_id = ap.professor_id
+            AND s.dia_semana   = t.dia_semana
+            LEFT JOIN professores p ON p.id = ap.professor_id
+            WHERE ah.versao_id = :v:
+            AND (ah.bypass IS NULL OR ah.bypass = '0')
+            GROUP BY ap.professor_id, p.nome, t.dia_semana
+        ";
+        return $this->db->query($sql, ['v' => $versaoId])->getResultArray();
+    }
+
+
+    public function countRestricaoDocente(int $versaoId): array
     {
         $sqlRestricao = "
-            SELECT COUNT(DISTINCT ah.id) AS total
+            SELECT DISTINCT ah.id AS id_conflito
             FROM aula_horario ah
             JOIN tempos_de_aula t1   ON t1.id = ah.tempo_de_aula_id
             JOIN aula_professor ap   ON ap.aula_id = ah.aula_id
@@ -714,136 +751,509 @@ class AulaHorarioModel extends Model
               AND (t2.hora_inicio*60 + t2.minuto_inicio) <= (t1.hora_inicio*60 + t1.minuto_inicio)
               AND (t2.hora_fim*60 + t2.minuto_fim)       >  (t1.hora_inicio*60 + t1.minuto_inicio)
         ";
-        $conflitos = $this->db->query($sqlRestricao, ['v' => $versaoId])->getRowArray();
-        return (int)($conflitos['total'] ?? 0);
+        $conflitos = $this->db->query($sqlRestricao, ['v' => $versaoId])->getResultArray();
+        return $conflitos ?? 0;
     }
 
-    public function countTresTurnos(int $versaoId): int
+    public function countTempoEntreTurnos(int $versaoId): array
     {
-        $sqlTresTurnos = "
-            SELECT COUNT(*) AS total
-            FROM (
-                SELECT ap.professor_id, t.dia_semana,
-                    COUNT(DISTINCT
-                        CASE
-                            WHEN t.hora_inicio < 12 THEN 1
-                            WHEN t.hora_inicio < 18 THEN 2
-                            ELSE 3
-                        END
-                    ) AS qnt_turnos
-                FROM aula_horario ah
-                JOIN aula_professor ap ON ap.aula_id = ah.aula_id
-                JOIN tempos_de_aula t  ON t.id = ah.tempo_de_aula_id
-                WHERE ah.versao_id = :v:
-                  AND (ah.bypass IS NULL OR ah.bypass = '0')
-                GROUP BY ap.professor_id, t.dia_semana
-                HAVING COUNT(DISTINCT
+        $sql = "
+            WITH base AS (
+                SELECT
+                    ah.id AS aula_id,
+                    ap.professor_id,
+                    t.dia_semana,
+                    (t.hora_inicio*60 + t.minuto_inicio) AS inicio,
+                    (t.hora_fim*60   + t.minuto_fim)    AS fim,
                     CASE
                         WHEN t.hora_inicio < 12 THEN 1
                         WHEN t.hora_inicio < 18 THEN 2
                         ELSE 3
-                    END
-                ) >= 3
-            ) s
-        ";
-        $conflitos = $this->db->query($sqlTresTurnos, ['v' => $versaoId])->getRowArray();
-        return (int)($conflitos['total'] ?? 0);
-    }
-
-    public function verificarConflitos($aulaHorarioId)
-    {
-        $conflitos = [];
-
-        // 1. Conflito de Choque de Ambiente
-        $choqueAmbiente = $this->choqueAmbiente($aulaHorarioId);
-        if ($choqueAmbiente > 0)
-        {
-            $conflitos['AMBIENTE'] = $choqueAmbiente;
-        }
-
-        // 2. Conflito de Choque de Docente
-        $choqueDocente = $this->choqueDocente($aulaHorarioId);
-        if ($choqueDocente > 0)
-        {
-            $conflitos['PROFESSOR'] = $choqueDocente;
-        }
-
-        return $conflitos;
-    }
-
-    public function countTempoEntreTurnos(int $versaoId): int
-    {
-        $sqlIntervalo = "
-            WITH base AS (
-                SELECT
-                    ap.professor_id,
-                    t.dia_semana AS dia_semana,
-                    (CAST(t.hora_inicio AS SIGNED)*60 + CAST(t.minuto_inicio AS SIGNED)) AS inicio,
-                    (CAST(t.hora_fim   AS SIGNED)*60 + CAST(t.minuto_fim   AS SIGNED))   AS fim,
-                    CASE
-
-                    -- definindo períodos:
-
-                    WHEN t.hora_inicio < 12 THEN 1 -- manhã
-                    WHEN t.hora_inicio < 18 THEN 2 -- tarde
-                    ELSE 3 -- noite
-                    END AS turno,
-
-                    ah.id AS aula_id
+                    END AS turno
                 FROM aula_horario ah
                 JOIN tempos_de_aula t  ON t.id = ah.tempo_de_aula_id
                 JOIN aula_professor ap ON ap.aula_id = ah.aula_id
                 WHERE ah.versao_id = :v:
-                    AND (ah.bypass IS NULL OR ah.bypass = '0')
-                ),
-                aulas AS (
+                AND (ah.bypass IS NULL OR ah.bypass = '0')
+            ),
+            aulas AS (
                 SELECT * FROM base
                 UNION ALL
-
-                -- duplica semana para capturar noite -> manhã
-
-                SELECT professor_id, dia_semana + 7, inicio, fim, turno, aula_id FROM base
-                ),
-                ordenar AS (
+                -- duplica a semana para capturar noite->manhã
+                SELECT professor_id, dia_semana+7, inicio, fim, turno, aula_id FROM base
+            ),
+            ordenar AS (
                 SELECT
-                    professor_id, dia_semana, inicio, fim, turno, aula_id,
-                    LAG(fim)   OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio)    AS fim_prev,
-                    LAG(dia_semana)     OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio)    AS d_prev,
-                    LAG(turno) OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio)    AS turno_prev
-                FROM aulas
-                ),
-                intervalos AS (
+                    a.*,
+                    LAG(fim)        OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio) AS fim_prev,
+                    LAG(dia_semana) OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio) AS dia_prev,
+                    LAG(turno)      OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio) AS turno_prev
+                FROM aulas a
+            ),
+            intervalos AS (
                 SELECT
                     aula_id,
-                    MOD(dia_semana,7)         AS dia,
-                    MOD(d_prev,7)    AS dia_prev,
+                    MOD(dia_semana,7) AS dia,
+                    MOD(dia_prev,7)   AS dia_prev,
                     turno,
                     turno_prev,
-                    CAST(inicio AS SIGNED) - CAST(fim_prev AS SIGNED) AS intervalo
+                    (inicio - fim_prev) AS intervalo
                 FROM ordenar
                 WHERE fim_prev IS NOT NULL
-                )
-                SELECT COUNT(DISTINCT aula_id) AS total
-                FROM intervalos
-                WHERE
+            )
+            SELECT DISTINCT aula_id AS id_conflito
+            FROM intervalos
+            WHERE
+            (dia = dia_prev AND turno_prev = 1 AND turno = 2 AND intervalo < 60)
+            OR (dia = dia_prev AND turno_prev = 2 AND turno = 3 AND intervalo < 60)
+            OR (dia = MOD(dia_prev + 1, 7) AND turno_prev = 3 AND turno = 1 AND intervalo < 660)
+        ";
+        return $this->db->query($sql, ['v' => $versaoId])->getResultArray();
+    }
 
-                -- mesmo dia: apenas manhã->tarde ou tarde->noite, e intervalo < 60
+    public function montarDetalheDoAH($id, $tipo)
+    {   
 
-                (dia = dia_prev AND
-                    (
-                    (turno_prev = 1 AND turno = 2 AND intervalo < 60) OR
-                    (turno_prev = 2 AND turno = 3 AND intervalo < 60)
-                    )
-                )
-                OR
+        $nomeDoDia = function ($numero) {
+            $dias = [
+                1 => 'Segunda-feira',
+                2 => 'Terça-feira',
+                3 => 'Quarta-feira',
+                4 => 'Quinta-feira',
+                5 => 'Sexta-feira',
+                6 => 'Sábado',
+                7 => 'Domingo'
+            ];
+            return $dias[$numero];
+        };
 
-                -- virada de dia: noite->manhã, e intervalo < 11h
+        $sqlAmb = "
+            SELECT
+                ah.id AS aula_horario_id,
+                ah.versao_id,
 
-                (dia = MOD(dia_prev + 1, 7) AND turno_prev = 3 AND turno = 1 AND intervalo < 660);
+                t1.dia_semana,
+                t1.hora_inicio AS a_ini_h, t1.minuto_inicio AS a_ini_m,
+                t1.hora_fim AS a_fim_h, t1.minuto_fim AS a_fim_m,
+
+                t2.dia_semana AS b_dia,
+                t2.hora_inicio AS b_ini_h, t2.minuto_inicio AS b_ini_m,
+                t2.hora_fim AS b_fim_h, t2.minuto_fim AS b_fim_m,
+
+                p.nome AS professor_nome,
+                ta.sigla AS turma_nome,
+                a1.ambiente_id AS ambiente_id,
+                amb1.nome AS ambiente_nome,
+                c.nome AS curso_nome
+
+                FROM aula_horario ah
+
+                JOIN tempos_de_aula t1 ON t1.id = ah.tempo_de_aula_id
+
+                JOIN aula_horario_ambiente a1 ON a1.aula_horario_id = ah.id
+                JOIN aula_horario_ambiente a2 ON a2.ambiente_id = a1.ambiente_id
+
+                JOIN ambientes amb1 ON amb1.id = a1.ambiente_id
+
+                JOIN aula_horario ah2 ON ah2.id = a2.aula_horario_id AND ah2.id != ah.id
+                JOIN tempos_de_aula t2 ON t2.id = ah2.tempo_de_aula_id
+                
+                LEFT JOIN aula_professor ahp1 ON ahp1.aula_id = ah.id 
+                LEFT JOIN professores p ON p.id = ahp1.professor_id
+                
+                LEFT JOIN aulas aul ON aul.id = ah.aula_id
+                LEFT JOIN turmas ta ON ta.id = aul.turma_id
+                LEFT JOIN cursos c ON c.id = ta.curso_id
+                
+                WHERE ah.id = :id: AND ah.versao_id = :versao_id:
+                ORDER BY ah.id ASC;
         ";
 
-        $conflitos = $this->db->query($sqlIntervalo, ['v' => $versaoId])->getRowArray();
- 
-        return (int)($conflitos['total'] ?? 0);
+        $sqlProf = "
+            SELECT
+                ah1.id                                    AS aula_horario_id,
+                p.nome                                    AS professor_nome,
+                crs.nome                                    AS curso_nome,
+                t1.dia_semana                             AS dia_semana,
+                t1.hora_inicio                            AS a_ini_h,
+                t1.minuto_inicio                          AS a_ini_m,
+                t1.hora_fim                               AS a_fim_h,
+                t1.minuto_fim                             AS a_fim_m,
+                -- nome legível do tempo (caso queira usar)
+                CONCAT(LPAD(t1.hora_inicio,2,'0'), ':', LPAD(t1.minuto_inicio,2,'0'),
+                    ' - ',
+                    LPAD(t1.hora_fim,2,'0'), ':', LPAD(t1.minuto_fim,2,'0')) AS tempo_nome,
+                tu.sigla                                   AS turma_nome,
+                amb.nome                                  AS ambiente_nome
+            FROM aula_horario ah1
+
+            JOIN tempos_de_aula t1       ON t1.id = ah1.tempo_de_aula_id
+
+            LEFT JOIN aula_professor ap1 ON ap1.aula_id = ah1.aula_id
+            LEFT JOIN professores p       ON p.id = ap1.professor_id
+            LEFT JOIN aulas aul           ON aul.id = ah1.aula_id
+
+            LEFT JOIN turmas tu           ON tu.id = aul.turma_id
+            LEFT JOIN cursos crs           ON crs.id = tu.curso_id
+            LEFT JOIN aula_horario_ambiente aha ON aha.aula_horario_id = ah1.id
+
+            LEFT JOIN ambientes amb       ON amb.id = aha.ambiente_id
+            WHERE ah1.id = :id:
+            AND ah1.versao_id = :versao_id:
+            AND (ah1.bypass IS NULL OR ah1.bypass = '0')
+            AND EXISTS (
+                    SELECT 1
+                    FROM aula_professor ap2
+                    JOIN aula_horario ah2 ON ah2.aula_id = ap2.aula_id
+                    JOIN tempos_de_aula t2 ON t2.id = ah2.tempo_de_aula_id
+                    WHERE ap2.professor_id = ap1.professor_id
+                    AND ah2.id <> ah1.id
+                    AND ah2.versao_id = :versao_id:
+                    AND (ah2.bypass IS NULL OR ah2.bypass = '0')
+                    AND t1.dia_semana = t2.dia_semana
+                    AND (t1.hora_inicio*60 + t1.minuto_inicio) < (t2.hora_fim*60 + t2.minuto_fim)
+                    AND (t2.hora_inicio*60 + t2.minuto_inicio) < (t1.hora_fim*60 + t1.minuto_fim)
+            )
+            LIMIT 1
+        ";
+
+        $sqlTurnos = "
+            SELECT
+                ah.id                                       AS aula_horario_id,
+                p.nome                                      AS professor_nome,
+                crs.nome                                      AS curso_nome,
+                t1.dia_semana                               AS dia_semana,
+                t1.hora_inicio                              AS a_ini_h,
+                t1.minuto_inicio                            AS a_ini_m,
+                t1.hora_fim                                 AS a_fim_h,
+                t1.minuto_fim                               AS a_fim_m,
+                CONCAT(LPAD(t1.hora_inicio,2,'0'), ':', LPAD(t1.minuto_inicio,2,'0'),
+                    ' - ',
+                    LPAD(t1.hora_fim,2,'0'), ':', LPAD(t1.minuto_fim,2,'0')) AS tempo_nome,
+                tu.sigla                                    AS turma_nome,
+                GROUP_CONCAT(DISTINCT amb.nome ORDER BY amb.nome SEPARATOR ' / ') AS ambiente_nome,
+                s.qnt_turnos                                AS total_turnos,
+                s.turnos_str                                AS turnos
+            FROM aula_horario ah
+            JOIN tempos_de_aula t1              ON t1.id = ah.tempo_de_aula_id
+            JOIN aula_professor ap              ON ap.aula_id = ah.aula_id
+            LEFT JOIN professores p             ON p.id = ap.professor_id
+            LEFT JOIN aulas aul                 ON aul.id = ah.aula_id
+            LEFT JOIN turmas tu                 ON tu.id = aul.turma_id
+            LEFT JOIN cursos crs           ON crs.id = tu.curso_id
+            LEFT JOIN aula_horario_ambiente aha ON aha.aula_horario_id = ah.id
+            LEFT JOIN ambientes amb             ON amb.id = aha.ambiente_id
+            JOIN (
+                SELECT
+                    ap2.professor_id,
+                    t2.dia_semana,
+                    COUNT(DISTINCT
+                        CASE
+                            WHEN t2.hora_inicio < 12 THEN 1
+                            WHEN t2.hora_inicio < 18 THEN 2
+                            ELSE 3
+                        END
+                    ) AS qnt_turnos,
+                    GROUP_CONCAT(DISTINCT
+                        CASE
+                            WHEN t2.hora_inicio < 12 THEN 'Manhã'
+                            WHEN t2.hora_inicio < 18 THEN 'Tarde'
+                            ELSE 'Noite'
+                        END
+                        ORDER BY
+                            CASE
+                                WHEN t2.hora_inicio < 12 THEN 1
+                                WHEN t2.hora_inicio < 18 THEN 2
+                                ELSE 3
+                            END
+                        SEPARATOR ', '
+                    ) AS turnos_str
+                FROM aula_horario ah2
+                JOIN aula_professor ap2 ON ap2.aula_id = ah2.aula_id
+                JOIN tempos_de_aula t2  ON t2.id = ah2.tempo_de_aula_id
+                WHERE ah2.versao_id = :versao_id:
+                AND (ah2.bypass IS NULL OR ah2.bypass = '0')
+                GROUP BY ap2.professor_id, t2.dia_semana
+                HAVING COUNT(DISTINCT
+                    CASE
+                        WHEN t2.hora_inicio < 12 THEN 1
+                        WHEN t2.hora_inicio < 18 THEN 2
+                        ELSE 3
+                    END
+                ) >= 3
+            ) s ON s.professor_id = ap.professor_id
+            AND s.dia_semana   = t1.dia_semana
+            WHERE ah.id = :id:
+            AND ah.versao_id = :versao_id:
+            AND (ah.bypass IS NULL OR ah.bypass = '0')
+            GROUP BY
+            ah.id, p.nome, t1.dia_semana, t1.hora_inicio, t1.minuto_inicio, t1.hora_fim, t1.minuto_fim,
+            tu.sigla, s.qnt_turnos, s.turnos_str, crs.nome 
+            LIMIT 1
+        ";
+
+        $sqlRestricao = "
+            SELECT
+                ah.id AS aula_horario_id,
+
+                -- Dados de quem dá a aula (pode haver mais de um professor)
+
+                GROUP_CONCAT(DISTINCT p.nome ORDER BY p.nome SEPARATOR ' / ')
+                    AS professor_nome,
+
+                -- Dia/horários da AULA
+
+                t1.dia_semana                               AS dia_semana,
+                t1.hora_inicio                              AS a_ini_h,
+                t1.minuto_inicio                            AS a_ini_m,
+                t1.hora_fim                                 AS a_fim_h,
+                t1.minuto_fim                               AS a_fim_m,
+                CONCAT(LPAD(t1.hora_inicio,2,'0'), ':', LPAD(t1.minuto_inicio,2,'0'),
+                    ' - ',
+                    LPAD(t1.hora_fim,2,'0'), ':', LPAD(t1.minuto_fim,2,'0')) AS tempo_nome,
+
+                -- Turma/curso/ambiente
+                tu.sigla                                    AS turma_nome,
+                crs.nome                                    AS curso_nome,
+                GROUP_CONCAT(DISTINCT amb.nome ORDER BY amb.nome SEPARATOR ' / ')
+                    AS ambiente_nome,
+
+                -- Janela da RESTRIÇÃO (regra) que conflitou
+
+                pr.id                                       AS regra_id,
+                pr.tipo                                     AS regra_tipo,
+                t2.hora_inicio                              AS r_ini_h,
+                t2.minuto_inicio                            AS r_ini_m,
+                t2.hora_fim                                 AS r_fim_h,
+                t2.minuto_fim                               AS r_fim_m,
+                CONCAT(LPAD(t2.hora_inicio,2,'0'), ':', LPAD(t2.minuto_inicio,2,'0'),
+                    ' - ',
+                    LPAD(t2.hora_fim,2,'0'), ':', LPAD(t2.minuto_fim,2,'0')) AS restricao_janela
+
+            FROM aula_horario ah
+            JOIN tempos_de_aula t1              ON t1.id = ah.tempo_de_aula_id
+            JOIN aula_professor ap              ON ap.aula_id = ah.aula_id
+            LEFT JOIN professores p             ON p.id = ap.professor_id
+
+            LEFT JOIN aulas aul                 ON aul.id = ah.aula_id
+            LEFT JOIN turmas tu                 ON tu.id = aul.turma_id
+            LEFT JOIN cursos crs                ON crs.id = tu.curso_id
+
+            LEFT JOIN aula_horario_ambiente aha ON aha.aula_horario_id = ah.id
+            LEFT JOIN ambientes amb             ON amb.id = aha.ambiente_id
+
+            -- Regra do professor (tipo 2) com seu tempo associado
+
+            JOIN professor_regras pr            ON pr.professor_id = ap.professor_id AND pr.tipo = '2'
+            JOIN tempos_de_aula t2              ON t2.id = pr.tempo_de_aula_id
+
+            WHERE ah.id = :id:
+            AND ah.versao_id = :versao_id:
+            AND (ah.bypass IS NULL OR ah.bypass = '0')
+
+            -- Mesma lógica do count: início da AULA dentro da janela da RESTRIÇÃO
+            AND t1.dia_semana = t2.dia_semana
+            AND (t2.hora_inicio*60 + t2.minuto_inicio)
+                    <= (t1.hora_inicio*60 + t1.minuto_inicio)
+            AND (t2.hora_fim*60 + t2.minuto_fim)
+                    >  (t1.hora_inicio*60 + t1.minuto_inicio)
+
+            GROUP BY
+            ah.id, t1.dia_semana, t1.hora_inicio, t1.minuto_inicio, t1.hora_fim, t1.minuto_fim,
+            tu.sigla, crs.nome,
+            pr.id, pr.tipo, 
+            t2.hora_inicio, t2.minuto_inicio, t2.hora_fim, t2.minuto_fim
+
+            LIMIT 1
+        ";
+
+        $sqlIntervalos = "
+            WITH base AS (
+                SELECT
+                    ah.id AS aula_id,
+                    ap.professor_id,
+                    t.dia_semana,
+                    (t.hora_inicio*60 + t.minuto_inicio) AS inicio,
+                    (t.hora_fim*60   + t.minuto_fim)    AS fim,
+                    CASE
+                        WHEN t.hora_inicio < 12 THEN 1
+                        WHEN t.hora_inicio < 18 THEN 2
+                        ELSE 3
+                    END AS turno
+                FROM aula_horario ah
+                JOIN tempos_de_aula t  ON t.id = ah.tempo_de_aula_id
+                JOIN aula_professor ap ON ap.aula_id = ah.aula_id
+                WHERE ah.versao_id = :versao_id:
+                AND (ah.bypass IS NULL OR ah.bypass = '0')
+            ),
+            aulas_expandidas AS (
+                SELECT * FROM base
+                UNION ALL
+                SELECT professor_id, dia_semana+7, inicio, fim, turno, aula_id FROM base
+            ),
+            ordenar AS (
+                SELECT
+                    a.*,
+                    LAG(fim)        OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio) AS fim_prev,
+                    LAG(dia_semana) OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio) AS dia_prev,
+                    LAG(turno)      OVER (PARTITION BY professor_id ORDER BY dia_semana, inicio) AS turno_prev
+                FROM aulas_expandidas a
+            ),
+            violado AS (
+                SELECT
+                    aula_id,
+                    MOD(dia_semana,7) AS dia,
+                    MOD(dia_prev,7)   AS dia_prev,
+                    turno,
+                    turno_prev,
+                    (inicio - fim_prev) AS intervalo
+                FROM ordenar
+                WHERE fim_prev IS NOT NULL
+            )
+            SELECT
+                ah.id                                       AS aula_horario_id,
+                GROUP_CONCAT(DISTINCT p.nome ORDER BY p.nome SEPARATOR ' / ')
+                                                        AS professor_nome,
+                t1.dia_semana                               AS dia_semana,
+                t1.hora_inicio                              AS a_ini_h,
+                t1.minuto_inicio                            AS a_ini_m,
+                t1.hora_fim                                 AS a_fim_h,
+                t1.minuto_fim                               AS a_fim_m,
+                CONCAT(LPAD(t1.hora_inicio,2,'0'), ':', LPAD(t1.minuto_inicio,2,'0'),
+                    ' - ',
+                    LPAD(t1.hora_fim,2,'0'), ':', LPAD(t1.minuto_fim,2,'0')) AS tempo_nome,
+                tu.sigla                                    AS turma_nome,
+                crs.nome                                    AS curso_nome,
+                GROUP_CONCAT(DISTINCT amb.nome ORDER BY amb.nome SEPARATOR ' / ')
+                                                        AS ambiente_nome,
+                v.intervalo                                 AS intervalo_minutos,
+                CASE
+                    WHEN v.dia = v.dia_prev AND v.turno_prev = 1 AND v.turno = 2 AND v.intervalo < 60
+                        THEN 'Manhã → Tarde (< 60 min)'
+                    WHEN v.dia = v.dia_prev AND v.turno_prev = 2 AND v.turno = 3 AND v.intervalo < 60
+                        THEN 'Tarde → Noite (< 60 min)'
+                    WHEN v.dia = MOD(v.dia_prev + 1, 7) AND v.turno_prev = 3 AND v.turno = 1 AND v.intervalo < 660
+                        THEN 'Noite → Manhã (< 11h)'
+                    ELSE '—'
+                END                                        AS motivo_intervalo
+            FROM violado v
+            JOIN aula_horario ah                ON ah.id = v.aula_id
+            JOIN tempos_de_aula t1              ON t1.id = ah.tempo_de_aula_id
+            LEFT JOIN aula_professor ap         ON ap.aula_id = ah.aula_id
+            LEFT JOIN professores p             ON p.id = ap.professor_id
+            LEFT JOIN aulas aul                 ON aul.id = ah.aula_id        -- agora é a TABELA
+            LEFT JOIN turmas tu                 ON tu.id = aul.turma_id
+            LEFT JOIN cursos crs                ON crs.id = tu.curso_id
+            LEFT JOIN aula_horario_ambiente aha ON aha.aula_horario_id = ah.id
+            LEFT JOIN ambientes amb             ON amb.id = aha.ambiente_id
+            WHERE ah.id = :id:
+            AND ah.versao_id = :versao_id:
+            AND (ah.bypass IS NULL OR ah.bypass = '0')
+            AND (
+                (v.dia = v.dia_prev AND v.turno_prev = 1 AND v.turno = 2 AND v.intervalo < 60)
+                OR (v.dia = v.dia_prev AND v.turno_prev = 2 AND v.turno = 3 AND v.intervalo < 60)
+                OR (v.dia = MOD(v.dia_prev + 1, 7) AND v.turno_prev = 3 AND v.turno = 1 AND v.intervalo < 660)
+            )
+            GROUP BY
+                ah.id, t1.dia_semana, t1.hora_inicio, t1.minuto_inicio, t1.hora_fim, t1.minuto_fim,
+                tu.sigla, crs.nome, v.intervalo
+            LIMIT 1
+        ";
+
+        $params = [
+        'id' => $id,
+        'versao_id' => (int) (new VersoesModel())->getVersaoByUser(auth()->id()),
+        ];
+
+        if($tipo == 'ambiente') {
+            $query = $this->db->query($sqlAmb, $params);
+        } 
+        if($tipo == 'professor') {
+            $query = $this->db->query($sqlProf, $params);
+        }
+        if($tipo == 'turnos') {
+            $query = $this->db->query($sqlTurnos, $params);
+        }
+        if($tipo == 'restricao') {
+            $query = $this->db->query($sqlRestricao, $params);
+        }
+        if($tipo == 'intervalo') {
+            $query = $this->db->query($sqlIntervalos, $params);
+        }
+
+        $conflito = $query->getRowArray();
+
+        if (!$conflito) {
+            return null;
+        }
+
+        $ini = sprintf('%02d:%02d', (int)$conflito['a_ini_h'], (int)$conflito['a_ini_m']);
+        $fim = sprintf('%02d:%02d', (int)$conflito['a_fim_h'], (int)$conflito['a_fim_m']);
+
+        //dependendo do tipo de conflito, retorna os dados necessários
+        switch ($tipo) {
+            case 'ambiente':
+                return [
+                    'aula_horario_id' => $conflito['aula_horario_id'],
+                    'ambiente' => $conflito['ambiente_nome'],
+                    'dia' => $nomeDoDia($conflito['dia_semana']),
+                    'horario' => $ini . ' - ' . $fim,
+                    'professor' => $conflito['professor_nome'] ?? '---',
+                    'turma' => $conflito['turma_nome'] ?? '---',
+                    'curso' => $conflito['curso_nome'] ?? '---',
+                    'ambiente_id' => $conflito['ambiente_id']
+                ];
+
+            case 'professor':
+                return [
+                    'aula_horario_id' => $conflito['aula_horario_id'],
+                    'professor' => $conflito['professor_nome'],
+                    'dia' => $nomeDoDia($conflito['dia_semana']),
+                    'horario' => $ini . ' - ' . $fim,   
+                    'motivo' => 'Conflito de professor',
+                    'turma' => $conflito['turma_nome'] ?? '---',
+                    'curso' => $conflito['curso_nome'] ?? '---',
+                    'tempo' => $conflito['tempo_nome'] ?? '---',
+                    'ambiente' => $conflito['ambiente_nome'] ?? '---'
+                ];
+
+            case 'turnos':
+                return [
+                    'aula_horario_id' => $conflito['aula_horario_id'],
+                    'dia' => $nomeDoDia($conflito['dia_semana']),
+                    'horario' => $ini . ' - ' . $fim,
+                    'motivo' => 'Conflito de turnos',
+                    'professor' => $conflito['professor_nome'] ?? '---',
+                    'turma' => $conflito['turma_nome'] ?? '---',
+                    'curso' => $conflito['curso_nome'] ?? '---',
+                    'tempo' => $conflito['tempo_nome'] ?? '---',
+                    'ambiente' => $conflito['ambiente_nome'] ?? '---'
+                ];
+
+            case 'restricao':
+                return [
+                    'aula_horario_id' => $conflito['aula_horario_id'],
+                    'horario' => $ini . ' - ' . $fim,
+                    'dia' => $nomeDoDia($conflito['dia_semana']),
+                    'professor' => $conflito['professor_nome'] ?? '---',
+                    'ambiente' => $conflito['ambiente_nome'] ?? '---',
+                    'turma' => $conflito['turma_nome'] ?? '---',
+                    'curso' => $conflito['curso_nome'] ?? '---',
+                ];
+            case 'intervalo':
+                return [
+                    'aula_horario_id' => $conflito['aula_horario_id'],
+                    'horario' => $ini . ' - ' . $fim,
+                    'dia' => $nomeDoDia($conflito['dia_semana']),
+                    'professor' => $conflito['professor_nome'] ?? '---',
+                    'ambiente' => $conflito['ambiente_nome'] ?? '---',
+                    'turma' => $conflito['turma_nome'] ?? '---',
+                    'curso' => $conflito['curso_nome'] ?? '---',
+                ];    
+
+                default:
+                return null;
+        }
     }
-}
+
+}   

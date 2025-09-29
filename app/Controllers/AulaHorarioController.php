@@ -21,13 +21,18 @@ class AulaHorarioController extends BaseController
 		$turnos = $model->countTresTurnos($versaoId);
 		$intervalo = $model->countTempoEntreTurnos($versaoId);
 
-		$conflitos = [
-			'CONFLITO-AMBIENTE' => $amb,
-			'CONFLITO-PROFESSOR' => $prof,
-			'RESTRIÇÃO-DOCENTE' => $restricao,
-			'CONFLITO-TURNOS' => $turnos,
-			'CONFLITO-INTERVALO' => $intervalo,
-		];
+    $conflitos = [
+      'CONFLITO-AMBIENTE' => $amb,
+      'COUNT-AMBIENTE' => count($amb),
+      'CONFLITO-PROFESSOR' => $prof,
+      'COUNT-PROFESSOR' => count($prof),
+      'CONFLITO-TURNOS' => $turnos,
+      'COUNT-TURNOS' => count($turnos),
+      'RESTRIÇÃO-DOCENTE' => $restricao,
+      'COUNT-RESTRIÇÃO' => count($restricao),
+      'CONFLITO-INTERVALO' => $intervalo,
+      'COUNT-INTERVALO' => count($intervalo),
+    ];
 
 		return $this->response->setJSON($conflitos);
 	}
@@ -41,19 +46,29 @@ class AulaHorarioController extends BaseController
 		$aulaHorarioModel = new AulaHorarioModel();
 		$conflitos = $aulaHorarioModel->destacandoConflitoAmbiente($idTempoDeAula, $idAula);
 
-		if (!empty($conflitos))
-		{
-			return $this->response->setJSON(
-				$conflitos
-			);
-		}
-		else
-		{
-			return $this->response->setJSON([
-				'mensagem' => 'Sem Conflitos!',
-			]);
-		}
-		
-		return $this->response->setJSON(['status' => 'ok']);
-	}
+      if (!empty($conflitos)) {
+          return $this->response->setJSON(
+              $conflitos
+          );
+      } else {
+          return $this->response->setJSON([
+              'mensagem' => 'Sem Conflitos!',
+          ]);
+      }
+      return $this->response->setJSON(['status' => 'ok']);
+  } 
+  
+   public function getConflitoDetalhes(int $id, string $tipo)
+    {
+        $aulaHorarioModel = new AulaHorarioModel();
+        $detalhes = $aulaHorarioModel->montarDetalheDoAH($id, $tipo);
+
+        if (!$detalhes) {
+            return $this->response->setStatusCode(404, 'Conflito Não Encontrado!')->setJSON([
+                'error' => 'Conflito Não Encontrado!',
+            ]);
+        }
+
+        return $this->response->setStatusCode(200)->setJSON($detalhes);
+    }
 }
