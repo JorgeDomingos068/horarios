@@ -347,7 +347,8 @@ document.addEventListener("DOMContentLoaded", function () {
     resumo.textContent = `${itens.length} registro(s).`;
   }
 
-  fetch("http://localhost/horarios/public/sys/tabela-horarios/verificar-todos-conflitos")
+  fetch("<?= base_url('sys/tabela-horarios/verificar-todos-conflitos') ?>")
+  //fetch("http://localhost/horarios/public/sys/tabela-horarios/verificar-todos-conflitos")
     .then(r => r.json())
     .then(data => {
       container.innerHTML = '';
