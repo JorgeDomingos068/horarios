@@ -187,5 +187,6 @@ $routes->group('sys', function ($routes) {
     $routes->group('backup', function ($routes) {
         $routes->get('/', 'BackupController::index');
         $routes->get('gerar', 'BackupController::backupManual');
+        $routes->get('baixar', 'BackupController::baixar');
     });
 });

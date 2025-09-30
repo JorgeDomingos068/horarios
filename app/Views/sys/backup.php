@@ -50,15 +50,10 @@
                           <div class="d-flex">
 
                             <span data-bs-toggle="tooltip" data-placement="top" title="Baixar Backup">
-                              <button
-                                type="button"
-                                class="justify-content-center align-items-center d-flex btn btn-inverse-primary button-trans-primary btn-icon me-1"
-                                data-bs-toggle="modal"
-                                data-bs-target="#modal-definir-versao-vigente"
-                                data-vigente-id="1"
-                                data-vigente-nome="1">
+                              <a href="<?= base_url('sys/backup/baixar') . '?' . http_build_query(['arquivo' => $backup['arquivo']])?>"
+                                class="justify-content-center align-items-center d-flex btn btn-inverse-primary button-trans-primary btn-icon me-1">
                                 <i class="fa fa-arrow-circle-o-down"></i>
-                              </button>
+                              </a>
                             </span>
 
                           </div>

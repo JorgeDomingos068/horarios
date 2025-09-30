@@ -15,7 +15,7 @@ class BackupController extends BaseController {
   {
     $diretorio = WRITEPATH . 'backups/';
     $backups = directory_map($diretorio);
-    $backups = array_reverse($backups);
+    rsort($backups);
 
     $backups = array_map(function($backup) {
       $data = substr($backup, 10, 10);
@@ -35,7 +35,11 @@ class BackupController extends BaseController {
 
   public function baixar()
   {
-    
+    $dadosGet = $this->request->getGet();
+    $nomeArquivo = $dadosGet['arquivo'];
+
+    $caminhoCompleto = WRITEPATH . 'backups/' . $nomeArquivo;
+    return $this->response->download($caminhoCompleto, null)->setFileName($nomeArquivo);
   }
   
   public function backupManual() 
