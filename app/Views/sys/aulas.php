@@ -189,6 +189,7 @@
 
         table = $("#listagem-aulas").DataTable({
             stateSave: true,
+            scrollX: true,
             stateSaveCallback: function(settings, data) {
                 localStorage.setItem('DataTables_' + settings.sInstance, JSON.stringify(data))
             },
