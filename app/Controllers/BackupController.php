@@ -13,6 +13,7 @@ class BackupController extends BaseController {
 
   public function index()
   {
+    $this->backupAutomatico();
     $diretorio = WRITEPATH . 'backups/';
     $backups = directory_map($diretorio);
     rsort($backups);
@@ -56,24 +57,64 @@ class BackupController extends BaseController {
     $dump = new Mysqldump($dbconn, $usuario, $senha);
     $dump->start($caminhoCompleto);
 
-    // register_shutdown_function(function() use ($caminhoCompleto) {
-    //   if (file_exists($caminhoCompleto)) {
-    //     unlink($caminhoCompleto);
-    //   }
-    // });
+    register_shutdown_function(function() use ($caminhoCompleto) {
+      if (file_exists($caminhoCompleto)) {
+        unlink($caminhoCompleto);
+      }
+    });
 
     return $this->response->download($caminhoCompleto, null)->setFileName($backupArquivo);
   }
 
   public function backupAutomatico() 
   {
-    $db = \Config\Database::connect();
-    $dbconn = 'mysql:host=' . $db->hostname . ';dbname=' . $db->database;
-    $usuario = $db->username;
-    $senha = $db->password;
+    $diretorio = WRITEPATH . 'backups/';
+    $backups = directory_map($diretorio);
 
-    $backupCaminho = WRITEPATH . 'backups/';
-    $backupArquivo = 'Planifica_'. date('Y-m-d') .'.sql';
-    $caminhoCompleto = $backupCaminho . $backupArquivo;
+    if (sizeof($backups) >= 1) {
+      rsort($backups);
+  
+      $ultimoBackup = $diretorio . $backups[0];
+      $dataUltimoBackup = filectime($ultimoBackup);
+  
+      $dataUltimoBackup = new DateTime(date('Y-m-d', $dataUltimoBackup));
+      $hoje = new DateTime();
+  
+      $diferenca = date_diff($dataUltimoBackup, $hoje)->days;
+      
+      if ($diferenca >= 1) {
+        if (sizeof($backups) >= 20) {
+          sort($backups);
+          $primeiroBackup = $diretorio . $backups[0];
+          if (file_exists($primeiroBackup)) {
+            unlink($primeiroBackup);
+          }
+        }
+  
+        $db = \Config\Database::connect();
+        $dbconn = 'mysql:host=' . $db->hostname . ';dbname=' . $db->database;
+        $usuario = $db->username;
+        $senha = $db->password;
+    
+        $backupCaminho = WRITEPATH . 'backups/';
+        $backupArquivo = 'Planifica_'. date('Y-m-d') .'.sql';
+        $caminhoCompleto = $backupCaminho . $backupArquivo;
+  
+        $dump = new Mysqldump($dbconn, $usuario, $senha);
+        $dump->start($caminhoCompleto);
+      }
+    } else {
+      $db = \Config\Database::connect();
+      $dbconn = 'mysql:host=' . $db->hostname . ';dbname=' . $db->database;
+      $usuario = $db->username;
+      $senha = $db->password;
+  
+      $backupCaminho = WRITEPATH . 'backups/';
+      $backupArquivo = 'Planifica_'. date('Y-m-d') .'.sql';
+      $caminhoCompleto = $backupCaminho . $backupArquivo;
+
+      $dump = new Mysqldump($dbconn, $usuario, $senha);
+      $dump->start($caminhoCompleto);
+    }
   }
 }
